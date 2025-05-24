@@ -40,7 +40,7 @@ export class MultiLevelCache {
     this.l2Cache = new Redis({
       host: config.l2.host,
       port: config.l2.port,
-      retryDelayOnFailover: 100,
+      lazyConnect: true,
       enableReadyCheck: false,
       maxRetriesPerRequest: null,
     });

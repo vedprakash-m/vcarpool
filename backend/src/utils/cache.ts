@@ -325,13 +325,6 @@ export class MemoryCache {
     // Call the private cleanup method
     this.cleanup();
   }
-
-  /**
-   * Get cache metrics
-   */
-  getMetrics(): CacheMetrics {
-    return { ...this.metrics };
-  }
 }
 
 /**

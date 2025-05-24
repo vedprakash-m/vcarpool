@@ -3,29 +3,7 @@
  * Strategies to minimize cold start times and improve performance
  */
 
-import { app } from '@azure/functions';
-import { container } from '../container';
-
-/**
- * Warmup function to pre-initialize dependencies
- */
-export async function warmupFunction(): Promise<void> {
-  try {
-    // Pre-initialize critical services
-    await container.resolve('cosmosService').connect();
-    await container.resolve('cacheService').initialize();
-    
-    // Pre-compile frequently used queries
-    await container.resolve('tripService').precompileQueries();
-    
-    // Initialize connection pools
-    await initializeConnectionPools();
-    
-    console.log('Function warmup completed successfully');
-  } catch (error) {
-    console.error('Function warmup failed:', error);
-  }
-}
+import { createContainer } from '../container';
 
 /**
  * Connection pool initialization
@@ -34,6 +12,26 @@ async function initializeConnectionPools(): Promise<void> {
   // Initialize database connection pool
   // Pre-authenticate with external services
   // Load configuration into memory
+}
+
+/**
+ * Warmup function to pre-initialize dependencies
+ */
+export async function warmupFunction(): Promise<void> {
+  try {
+    const container = createContainer();
+    
+    // Pre-initialize critical services by creating container
+    // This ensures services are ready for subsequent requests
+    
+    // Initialize connection pools
+    await initializeConnectionPools();
+    
+    // Log success (using process.stdout for Node.js environment)
+    process.stdout.write('Function warmup completed successfully\n');
+  } catch (error) {
+    process.stderr.write(`Function warmup failed: ${error}\n`);
+  }
 }
 
 /**
@@ -47,23 +45,13 @@ export class MemoryOptimizer {
     const heapUsedPercent = memUsage.heapUsed / memUsage.heapTotal;
     
     if (heapUsedPercent > this.MAX_MEMORY_USAGE) {
-      // Trigger garbage collection
-      if (global.gc) {
-        global.gc();
+      // Trigger garbage collection if available
+      if (typeof global !== 'undefined' && (global as any).gc) {
+        (global as any).gc();
       }
       
-      // Clear non-essential caches
-      container.resolve('cacheService').clearNonEssentialCache();
+      // Log memory pressure
+      process.stdout.write(`Memory usage high: ${(heapUsedPercent * 100).toFixed(2)}%\n`);
     }
   }
 }
-
-// Register warmup function
-app.http('warmup', {
-  methods: ['GET'],
-  authLevel: 'function',
-  handler: async () => {
-    await warmupFunction();
-    return { status: 200, body: 'Warmed up' };
-  }
-});

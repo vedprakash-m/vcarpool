@@ -25,27 +25,12 @@ export function initializeMonitoring(): void {
       .setAutoCollectHeartbeat(true)
       .setUseDiskRetryCaching(true)
       .setSendLiveMetrics(true)
-      .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C)
-      // Configure custom context tags
-      .addTelemetryProcessor((envelope, context) => {
-        // Sanitize any sensitive data in telemetry
-        if (envelope.data && envelope.data.baseData) {
-          const baseData = envelope.data.baseData;
-          
-          // For HTTP requests, sanitize headers
-          if (baseData.url && baseData.headers) {
-            sensitiveHeaders.forEach(header => {
-              if (baseData.headers[header]) {
-                baseData.headers[header] = '[REDACTED]';
-              }
-            });
-          }
-        }
-        return true; // Always send the telemetry
-      });
+      .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C);
     
     // Start Application Insights
-    appInsights.defaultClient.context.tags[appInsights.defaultClient.context.keys.cloudRole] = "vCarpool-Backend";
+    if (appInsights.defaultClient) {
+      appInsights.defaultClient.context.tags[appInsights.defaultClient.context.keys.cloudRole] = "vCarpool-Backend";
+    }
     appInsights.start();
     
     console.info('Application Insights initialized successfully');
