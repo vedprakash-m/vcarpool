@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { registerSchema, RegisterRequest } from '@vcarpool/shared';
 import { useAuthStore } from '@/store/auth.store';
-import { CarIcon } from '@heroicons/react/24/outline';
+import { TruckIcon as CarIcon } from '@heroicons/react/24/outline';
 
 export default function RegisterPage() {
   const router = useRouter();
