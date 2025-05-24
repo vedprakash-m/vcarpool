@@ -2,21 +2,52 @@ name: vCarpool CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
-    # Manual trigger
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - test
+        - prod
 
 env:
   NODE_VERSION: '18.x'
-  AZURE_FUNCTIONAPP_NAME: vcarpool-api
-  AZURE_STATICWEBAPP_NAME: vcarpool-web
+  AZURE_FUNCTIONAPP_NAME: 'vcarpool-api'
+  AZURE_STATICWEBAPP_NAME: 'vcarpool-web'
   BACKEND_WORKING_DIR: './backend'
   FRONTEND_WORKING_DIR: './frontend'
   SHARED_WORKING_DIR: './shared'
+  INFRASTRUCTURE_WORKING_DIR: './infra'
 
 jobs:
+  # Determine deployment environment
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      resource-group: ${{ steps.env.outputs.resource-group }}
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+            echo "environment=test" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+          echo "resource-group=vcarpool-rg-${{ steps.env.outputs.environment || 'dev' }}" >> $GITHUB_OUTPUT
+
   # Build and test shared library
   shared-build:
     runs-on: ubuntu-latest
@@ -24,9 +55,9 @@ jobs:
       run:
         working-directory: ${{ env.SHARED_WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -38,7 +69,7 @@ jobs:
       - name: Run tests
         run: npm test
       - name: Upload shared artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: shared-dist
           path: ${{ env.SHARED_WORKING_DIR }}/dist
@@ -51,15 +82,15 @@ jobs:
       run:
         working-directory: ${{ env.BACKEND_WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: '${{ env.BACKEND_WORKING_DIR }}/package-lock.json'
       - name: Download shared artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: shared-dist
           path: ${{ env.SHARED_WORKING_DIR }}/dist
@@ -75,7 +106,7 @@ jobs:
       - name: Run backend tests
         run: npm test
       - name: Upload backend artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: backend-dist
           path: ${{ env.BACKEND_WORKING_DIR }}/dist
@@ -88,15 +119,15 @@ jobs:
       run:
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: '${{ env.FRONTEND_WORKING_DIR }}/package-lock.json'
       - name: Download shared artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: shared-dist
           path: ${{ env.SHARED_WORKING_DIR }}/dist
@@ -112,51 +143,141 @@ jobs:
       - name: Run frontend tests
         run: npm test
       - name: Upload frontend artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: ${{ env.FRONTEND_WORKING_DIR }}/.next
+
+  # Deploy infrastructure
+  infrastructure-deploy:
+    needs: [setup, shared-build, backend-build, frontend-build]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    outputs:
+      functionAppName: ${{ steps.deploy.outputs.functionAppName }}
+      staticWebAppName: ${{ steps.deploy.outputs.staticWebAppName }}
+      functionAppEndpoint: ${{ steps.deploy.outputs.functionAppEndpoint }}
+      staticWebAppEndpoint: ${{ steps.deploy.outputs.staticWebAppEndpoint }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Azure CLI Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Create Resource Group
+        run: |
+          az group create \
+            --name ${{ needs.setup.outputs.resource-group }} \
+            --location "East US"
+      
+      - name: Deploy Azure Infrastructure
+        id: deploy
+        run: |
+          cd ${{ env.INFRASTRUCTURE_WORKING_DIR }}
+          
+          # Deploy Bicep template
+          deployment_output=$(az deployment group create \
+            --resource-group ${{ needs.setup.outputs.resource-group }} \
+            --template-file main.bicep \
+            --parameters environmentName=${{ needs.setup.outputs.environment }} \
+                        appName=vcarpool \
+            --query 'properties.outputs' \
+            --output json)
+          
+          # Extract outputs and set as step outputs
+          echo "functionAppName=$(echo $deployment_output | jq -r '.functionAppName.value // empty')" >> $GITHUB_OUTPUT
+          echo "staticWebAppName=$(echo $deployment_output | jq -r '.staticWebAppName.value // empty')" >> $GITHUB_OUTPUT
+          echo "functionAppEndpoint=$(echo $deployment_output | jq -r '.functionAppEndpoint.value // empty')" >> $GITHUB_OUTPUT
+          echo "staticWebAppEndpoint=$(echo $deployment_output | jq -r '.staticWebAppEndpoint.value // empty')" >> $GITHUB_OUTPUT
+          
+          echo "Infrastructure deployment completed successfully"
+      
+      - name: Configure Key Vault Secrets
+        run: |
+          # Generate JWT secrets if they don't exist
+          KEY_VAULT_NAME="vcarpool-kv-${{ needs.setup.outputs.environment }}"
+          
+          # Check if secrets exist, if not create them
+          if ! az keyvault secret show --vault-name $KEY_VAULT_NAME --name JWT-SECRET >/dev/null 2>&1; then
+            JWT_SECRET=$(openssl rand -base64 64)
+            az keyvault secret set --vault-name $KEY_VAULT_NAME --name JWT-SECRET --value "$JWT_SECRET"
+          fi
+          
+          if ! az keyvault secret show --vault-name $KEY_VAULT_NAME --name JWT-REFRESH-SECRET >/dev/null 2>&1; then
+            JWT_REFRESH_SECRET=$(openssl rand -base64 64)
+            az keyvault secret set --vault-name $KEY_VAULT_NAME --name JWT-REFRESH-SECRET --value "$JWT_REFRESH_SECRET"
+          fi
 
   # Deploy backend to Azure Functions
   backend-deploy:
-    needs: [backend-build]
-    if: github.ref == 'refs/heads/main'
+    needs: [setup, infrastructure-deploy]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ needs.setup.outputs.environment }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+      
       - name: Download backend artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: backend-dist
           path: ${{ env.BACKEND_WORKING_DIR }}/dist
+      
+      - name: Download shared artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: shared-dist
+          path: ${{ env.SHARED_WORKING_DIR }}/dist
+      
       - name: Install production dependencies
         working-directory: ${{ env.BACKEND_WORKING_DIR }}
-        run: npm ci --production
-      - name: 'Deploy to Azure Functions'
+        run: |
+          npm ci --production
+          # Copy shared library
+          cp -r ../${{ env.SHARED_WORKING_DIR }}/dist ./node_modules/@vcarpool/
+      
+      - name: Azure CLI Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
         with:
-          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          app-name: ${{ needs.infrastructure-deploy.outputs.functionAppName }}
           package: ${{ env.BACKEND_WORKING_DIR }}
-          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+      
+      - name: Health Check
+        run: |
+          sleep 30
+          endpoint="${{ needs.infrastructure-deploy.outputs.functionAppEndpoint }}"
+          if [ ! -z "$endpoint" ]; then
+            curl -f "$endpoint/health" || echo "Health check endpoint not ready yet"
+          fi
 
   # Deploy frontend to Azure Static Web Apps
   frontend-deploy:
-    needs: [frontend-build]
-    if: github.ref == 'refs/heads/main'
+    needs: [setup, infrastructure-deploy]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ needs.setup.outputs.environment }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      
       - name: Download frontend artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: frontend-dist
           path: ${{ env.FRONTEND_WORKING_DIR }}/.next
+      
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -166,3 +287,52 @@ jobs:
           app_location: ${{ env.FRONTEND_WORKING_DIR }}
           output_location: ".next"
           skip_app_build: true
+
+  # Post-deployment tests
+  integration-tests:
+    needs: [setup, infrastructure-deploy, backend-deploy, frontend-deploy]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install test dependencies
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+        run: npm ci
+      
+      - name: Run integration tests
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+        env:
+          API_BASE_URL: ${{ needs.infrastructure-deploy.outputs.functionAppEndpoint }}
+          FRONTEND_URL: ${{ needs.infrastructure-deploy.outputs.staticWebAppEndpoint }}
+        run: |
+          if npm run test:integration; then
+            echo "✅ Integration tests passed"
+          else
+            echo "❌ Integration tests failed"
+            exit 1
+          fi
+
+  # Notify deployment status
+  notify:
+    needs: [setup, infrastructure-deploy, backend-deploy, frontend-deploy, integration-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Resource Group**: ${{ needs.setup.outputs.resource-group }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend API**: ${{ needs.infrastructure-deploy.outputs.functionAppEndpoint }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend App**: ${{ needs.infrastructure-deploy.outputs.staticWebAppEndpoint }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Infrastructure**: ${{ needs.infrastructure-deploy.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend**: ${{ needs.backend-deploy.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend**: ${{ needs.frontend-deploy.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tests**: ${{ needs.integration-tests.result }}" >> $GITHUB_STEP_SUMMARY

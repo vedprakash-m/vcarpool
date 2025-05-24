@@ -10,6 +10,7 @@
     "deploy": "npm run build && func azure functionapp publish vcarpool-functions",
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:integration": "jest --config jest.config.json --testPathPattern=integration",
     "clean": "rm -rf dist"
   },
   "dependencies": {
