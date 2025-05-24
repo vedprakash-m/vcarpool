@@ -3,6 +3,7 @@
  * Optimized Zustand store patterns and utilities
  */
 
+import React from 'react';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';

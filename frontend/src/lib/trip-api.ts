@@ -45,6 +45,9 @@ class TripApiService {
     const url = `/trips${queryString ? `?${queryString}` : ''}`;
     
     const response = await apiClient.get<PaginatedResponse<Trip>>(url);
+    if (!response.data) {
+      throw new Error('Failed to fetch trips');
+    }
     return response.data;
   }
 
@@ -53,6 +56,9 @@ class TripApiService {
    */
   async createTrip(tripData: CreateTripRequest): Promise<ApiResponse<Trip>> {
     const response = await apiClient.post<ApiResponse<Trip>>('/trips', tripData);
+    if (!response.data) {
+      throw new Error('Failed to create trip');
+    }
     return response.data;
   }
 
@@ -61,6 +67,9 @@ class TripApiService {
    */
   async updateTrip(tripId: string, updates: UpdateTripRequest): Promise<ApiResponse<Trip>> {
     const response = await apiClient.put<ApiResponse<Trip>>(`/trips/${tripId}`, updates);
+    if (!response.data) {
+      throw new Error('Failed to update trip');
+    }
     return response.data;
   }
 
@@ -69,6 +78,9 @@ class TripApiService {
    */
   async joinTrip(tripId: string, joinData: JoinTripRequest): Promise<ApiResponse<Trip>> {
     const response = await apiClient.post<ApiResponse<Trip>>(`/trips/${tripId}/join`, joinData);
+    if (!response.data) {
+      throw new Error('Failed to join trip');
+    }
     return response.data;
   }
 
@@ -77,6 +89,9 @@ class TripApiService {
    */
   async leaveTrip(tripId: string): Promise<ApiResponse<Trip>> {
     const response = await apiClient.delete<ApiResponse<Trip>>(`/trips/${tripId}/leave`);
+    if (!response.data) {
+      throw new Error('Failed to leave trip');
+    }
     return response.data;
   }
 
@@ -85,6 +100,9 @@ class TripApiService {
    */
   async getTripStats(): Promise<ApiResponse<TripStats>> {
     const response = await apiClient.get<ApiResponse<TripStats>>('/trips/stats');
+    if (!response.data) {
+      throw new Error('Failed to fetch trip stats');
+    }
     return response.data;
   }
 
@@ -100,6 +118,9 @@ class TripApiService {
     }
 
     const response = await apiClient.get<PaginatedResponse<Trip>>(`/trips?${params.toString()}`);
+    if (!response.data) {
+      throw new Error('Failed to fetch available trips');
+    }
     return response.data;
   }
 
@@ -108,6 +129,9 @@ class TripApiService {
    */
   async getMyTrips(): Promise<PaginatedResponse<Trip>> {
     const response = await apiClient.get<PaginatedResponse<Trip>>('/trips');
+    if (!response.data) {
+      throw new Error('Failed to fetch my trips');
+    }
     return response.data;
   }
 
@@ -118,6 +142,9 @@ class TripApiService {
     // The backend will default to showing user's trips when no specific filters are provided
     // We can add a query parameter to be explicit
     const response = await apiClient.get<PaginatedResponse<Trip>>('/trips?driver=me');
+    if (!response.data) {
+      throw new Error('Failed to fetch driver trips');
+    }
     return response.data;
   }
 
@@ -126,6 +153,9 @@ class TripApiService {
    */
   async getMyPassengerTrips(): Promise<PaginatedResponse<Trip>> {
     const response = await apiClient.get<PaginatedResponse<Trip>>('/trips?passenger=me');
+    if (!response.data) {
+      throw new Error('Failed to fetch passenger trips');
+    }
     return response.data;
   }
 }

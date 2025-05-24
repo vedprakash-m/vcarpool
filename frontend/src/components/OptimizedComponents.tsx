@@ -217,7 +217,7 @@ OptimizedImage.displayName = 'OptimizedImage';
  */
 interface PerformanceErrorBoundaryProps {
   children: React.ReactNode;
-  fallback?: React.ComponentType<{ error: Error; resetError: () => void }>;
+  fallback?: React.ComponentType<{ error: Error; resetErrorBoundary: () => void }>;
   onError?: (error: Error, errorInfo: any) => void;
 }
 
@@ -226,12 +226,12 @@ export function PerformanceErrorBoundary({
   fallback: Fallback,
   onError
 }: PerformanceErrorBoundaryProps) {
-  const DefaultFallback = ({ error, resetError }: { error: Error; resetError: () => void }) => (
+  const DefaultFallback = ({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) => (
     <div className="p-4 border border-red-200 rounded-lg bg-red-50">
       <h2 className="text-red-800 font-semibold mb-2">Something went wrong</h2>
       <p className="text-red-600 text-sm mb-4">{error.message}</p>
       <button
-        onClick={resetError}
+        onClick={resetErrorBoundary}
         className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
       >
         Try again
@@ -245,8 +245,7 @@ export function PerformanceErrorBoundary({
       onError={onError}
       onReset={() => {
         // Clear any performance-related state
-        if ('webkitGetUserMedia' in navigator) {
-          // Clear webkit memory if available
+        if (typeof window !== 'undefined') {
           window.location.reload();
         }
       }}
@@ -269,9 +268,8 @@ export function useBatchedUpdates() {
   React.useEffect(() => {
     if (updates.length > 0) {
       const timeoutId = setTimeout(() => {
-        React.unstable_batchedUpdates(() => {
-          updates.forEach(update => update());
-        });
+        // Use setTimeout to batch updates in the next tick
+        updates.forEach(update => update());
         setUpdates([]);
       }, 0);
 
@@ -332,7 +330,7 @@ export function OptimizedForm({
     <form onSubmit={handleSubmit}>
       {React.Children.map(children, child => {
         if (React.isValidElement(child) && child.props.name) {
-          return React.cloneElement(child, {
+          return React.cloneElement(child as React.ReactElement<any>, {
             value: values[child.props.name] || '',
             onChange: (e: React.ChangeEvent<HTMLInputElement>) => 
               handleValueChange(child.props.name, e.target.value),

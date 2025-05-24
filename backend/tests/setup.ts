@@ -5,8 +5,14 @@
 
 import { jest } from '@jest/globals';
 
+// Extend global types
+declare global {
+  var mockAzureContext: () => any;
+  var testUtils: any;
+}
+
 // Mock Azure Functions context
-global.mockAzureContext = () => ({
+(global as any).mockAzureContext = () => ({
   invocationId: 'test-invocation-id',
   functionName: 'test-function',
   functionDirectory: '/test/path',
@@ -39,34 +45,38 @@ process.env.JWT_EXPIRES_IN = '1h';
 process.env.BCRYPT_SALT_ROUNDS = '10';
 
 // Mock external dependencies
-jest.mock('@azure/cosmos', () => ({
-  CosmosClient: jest.fn().mockImplementation(() => ({
-    database: jest.fn().mockReturnValue({
-      container: jest.fn().mockReturnValue({
-        items: {
-          create: jest.fn(),
-          query: jest.fn().mockReturnValue({
-            fetchAll: jest.fn().mockResolvedValue({ resources: [] })
-          })
-        },
-        item: jest.fn().mockReturnValue({
-          read: jest.fn(),
-          replace: jest.fn(),
-          delete: jest.fn()
+const mockCosmosClient = {
+  database: jest.fn().mockReturnValue({
+    container: jest.fn().mockReturnValue({
+      items: {
+        create: jest.fn().mockResolvedValue({ resource: {} }),
+        query: jest.fn().mockReturnValue({
+          fetchAll: jest.fn().mockResolvedValue({ resources: [] })
         })
+      },
+      item: jest.fn().mockReturnValue({
+        read: jest.fn().mockResolvedValue({ resource: {} }),
+        replace: jest.fn().mockResolvedValue({ resource: {} }),
+        delete: jest.fn().mockResolvedValue({})
       })
     })
-  }))
+  })
+};
+
+jest.mock('@azure/cosmos', () => ({
+  CosmosClient: jest.fn().mockImplementation(() => mockCosmosClient)
 }));
 
-jest.mock('nodemailer', () => ({
+const mockNodemailer = {
   createTransport: jest.fn().mockReturnValue({
     sendMail: jest.fn().mockResolvedValue({ messageId: 'test-message-id' })
   })
-}));
+};
+
+jest.mock('nodemailer', () => mockNodemailer);
 
 // Global test utilities
-global.testUtils = {
+(global as any).testUtils = {
   createMockUser: () => ({
     id: 'test-user-id',
     email: 'test@example.com',
