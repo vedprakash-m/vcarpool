@@ -1,0 +1,45 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "node",
+  "transform": {
+    "^.+\\.tsx?$": [
+      "ts-jest",
+      {
+        "tsconfig": "tsconfig.json"
+      }
+    ]
+  },
+  "testMatch": [
+    "**/integration/**/*.test.ts"
+  ],
+  "moduleFileExtensions": [
+    "ts",
+    "tsx",
+    "js",
+    "jsx",
+    "json",
+    "node"
+  ],
+  "globals": {
+    "ts-jest": {
+      "isolatedModules": true
+    }
+  },
+  "testTimeout": 30000,
+  "globalSetup": "<rootDir>/tests/global-setup.ts",
+  "globalTeardown": "<rootDir>/tests/global-teardown.ts",
+  "setupFilesAfterEnv": [
+    "<rootDir>/tests/setup.ts"
+  ],
+  "testResultsProcessor": "<rootDir>/tests/test-results-processor.js",
+  "collectCoverage": true,
+  "collectCoverageFrom": [
+    "src/**/*.ts",
+    "!src/**/*.d.ts"
+  ],
+  "coverageReporters": [
+    "text",
+    "lcov"
+  ],
+  "coverageDirectory": "coverage/integration"
+}

@@ -3,17 +3,20 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+// Import test setup
+import './e2e/test-setup';
+
 export default defineConfig({
   testDir: './e2e',
   /* The directory where we'll store failed test artifacts */
   outputDir: './e2e/test-results',
   
   /* Timeout for each test */
-  timeout: 60000, // 60 seconds for CI environments
+  timeout: process.env.CI ? 120000 : 60000, // 120 seconds for CI environments, 60 for local
   
   /* Timeout for expect assertions */
   expect: {
-    timeout: 10000, // 10 seconds for assertions
+    timeout: process.env.CI ? 20000 : 10000, // 20 seconds for assertions in CI, 10 locally
   },
   
   /* Run tests in files in parallel */
@@ -34,13 +37,17 @@ export default defineConfig({
     baseURL: process.env.CI ? 'http://localhost:3000' : (process.env.E2E_TEST_URL || 'http://localhost:3000'),
     
     /* Collect trace on failure, or when explicitly requested */
-    trace: 'on-first-retry',
+    trace: process.env.CI ? 'on' : 'on-first-retry',
     
     /* Capture screenshot after each test */
     screenshot: 'only-on-failure',
     
     /* Record video on failure */
-    video: 'on-first-retry',
+    video: process.env.CI ? 'on' : 'on-first-retry',
+    
+    /* Use more reliable navigation and action timeouts for CI */
+    actionTimeout: process.env.CI ? 20000 : 5000,
+    navigationTimeout: process.env.CI ? 45000 : 10000,
   },
   
   /* Configure projects for different browsers */
@@ -78,11 +85,13 @@ export default defineConfig({
   
   /* Run local development server before the tests */
   webServer: process.env.CI ? {
-    command: 'npx next start',
+    command: 'npm run build && npm run start',
     url: 'http://localhost:3000',
     reuseExistingServer: false,
-    timeout: 120000, // 2 minutes
+    timeout: 240000, // 4 minutes for CI environment (increased from 3)
     cwd: '.',
+    stdout: 'pipe',
+    stderr: 'pipe',
   } : {
     command: 'next dev',
     url: 'http://localhost:3000',

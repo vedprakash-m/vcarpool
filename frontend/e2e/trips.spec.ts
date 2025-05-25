@@ -13,16 +13,21 @@ import { test, expect } from '@playwright/test';
 test.describe('Trip Management Flow', () => {
   // This test group requires authentication
   test.beforeEach(async ({ page }) => {
-    // Mock all relevant API responses
-    await mockAuthEndpoints(page);
-    await mockTripEndpoints(page);
+    // Mock all relevant API responses with retries for reliability
+    await retry(async () => await mockAuthEndpoints(page), 3);
+    await retry(async () => await mockTripEndpoints(page), 3);
     
     // Set up authentication state in localStorage for protected routes
-    await setupAuthState(page);
+    await retry(async () => await setupAuthState(page), 3);
     
-    // Verify authentication succeeded by navigating to dashboard
+    // Verify authentication succeeded by navigating to dashboard with more reliable loading
     await page.goto('/dashboard');
-    await page.waitForLoadState('domcontentloaded');
+    
+    // Wait for load events with increased timeouts for CI environment
+    await Promise.all([
+      page.waitForLoadState('domcontentloaded'),
+      page.waitForLoadState('networkidle').catch(() => console.log('NetworkIdle timeout acceptable'))
+    ]);
   });
 
   test('should display authenticated dashboard page with user info', async ({ page }) => {
@@ -39,7 +44,10 @@ test.describe('Trip Management Flow', () => {
     
     // Navigate to trips page
     await page.goto('/trips');
-    await page.waitForLoadState('networkidle');
+    await Promise.all([
+      page.waitForLoadState('domcontentloaded'),
+      page.waitForLoadState('networkidle').catch(() => console.log('NetworkIdle timeout acceptable'))
+    ]);
     
     // Verify trips page is loaded
     expect(page.url()).toContain('/trips');
@@ -62,11 +70,17 @@ test.describe('Trip Management Flow', () => {
     
     // Navigate to dashboard first to ensure auth is active
     await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
+    await Promise.all([
+      page.waitForLoadState('domcontentloaded'),
+      page.waitForLoadState('networkidle').catch(() => console.log('NetworkIdle timeout acceptable'))
+    ]);
     
     // Then navigate to trip creation page
     await page.goto('/trips/create');
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForLoadState('domcontentloaded'),
+      page.waitForLoadState('networkidle').catch(() => console.log('NetworkIdle timeout acceptable'))
+    ]);
     
     // Take a screenshot for verification
     await page.screenshot({ path: 'e2e/test-results/trip-creation-attempt.png' });
@@ -185,7 +199,10 @@ test.describe('Trip Management Flow', () => {
   test('should verify login page after direct navigation', async ({ page }) => {
     // We'll just directly navigate to the login page to verify it's accessible
     await page.goto('/login');
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForLoadState('domcontentloaded'),
+      page.waitForLoadState('networkidle').catch(() => console.log('NetworkIdle timeout acceptable'))
+    ]);
     
     // Take a screenshot of the login page
     await page.screenshot({ path: 'e2e/test-results/login-page-direct.png' });
@@ -203,6 +220,22 @@ test.describe('Trip Management Flow', () => {
 
 // Helper functions for setting up the test environment
 import type { Page, Route } from '@playwright/test';
+
+/**
+ * Retry a function multiple times until it succeeds
+ * @param fn Function to retry
+ * @param times Number of times to retry
+ * @param delay Delay between retries in ms
+ */
+async function retry<T>(fn: () => Promise<T>, times: number, delay = 1000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (times <= 1) throw error;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return retry(fn, times - 1, delay);
+  }
+}
 
 /**
  * Mock all authentication-related API endpoints

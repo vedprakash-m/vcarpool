@@ -1,3 +1,4 @@
+// Main template without Cosmos DB containers - for testing
 @description('Location for all resources')
 param location string = resourceGroup().location
 
@@ -50,20 +51,6 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
   }
 }
 
-// Application Insights for monitoring
-resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: appInsightsName
-  location: location
-  tags: tags
-  kind: 'web'
-  properties: {
-    Application_Type: 'web'
-    WorkspaceResourceId: logWorkspace.id
-    publicNetworkAccessForIngestion: 'Enabled'
-    publicNetworkAccessForQuery: 'Enabled'
-  }
-}
-
 // Log Analytics workspace for Application Insights
 resource logWorkspace 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
   name: '${appName}-logs-${environmentName}'
@@ -80,17 +67,66 @@ resource logWorkspace 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
   }
 }
 
+// Application Insights for monitoring
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: appInsightsName
+  location: location
+  tags: tags
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logWorkspace.id
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
+  }
+}
+
 // App Service Plan for Function App
 resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
   name: '${appName}-plan-${environmentName}'
   location: location
   tags: tags
   sku: {
-    name: 'B1' // Basic plan for development
-    tier: 'Basic'
+    name: 'Y1' // Consumption plan
+    tier: 'Dynamic'
   }
   properties: {
     reserved: true // Required for Linux
+  }
+}
+
+// Azure Cosmos DB Account
+resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2021-10-15' = {
+  name: cosmosDbAccountName
+  location: location
+  tags: tags
+  kind: 'GlobalDocumentDB'
+  properties: {
+    databaseAccountOfferType: 'Standard'
+    locations: [
+      {
+        locationName: location
+        failoverPriority: 0
+        isZoneRedundant: false
+      }
+    ]
+    consistencyPolicy: {
+      defaultConsistencyLevel: 'Session'
+    }
+    enableFreeTier: environmentName != 'prod'
+  }
+}
+
+// Cosmos DB Database
+resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2021-10-15' = {
+  name: '${cosmosAccount.name}/vcarpool'
+  properties: {
+    resource: {
+      id: 'vcarpool'
+    }
+    options: {
+      throughput: 400
+    }
   }
 }
 
@@ -171,151 +207,6 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
   }
 }
 
-// Azure Cosmos DB Account
-resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2021-10-15' = {
-  name: cosmosDbAccountName
-  location: location
-  tags: tags
-  kind: 'GlobalDocumentDB'
-  properties: {
-    databaseAccountOfferType: 'Standard'
-    locations: [
-      {
-        locationName: location
-        failoverPriority: 0
-        isZoneRedundant: false
-      }
-    ]
-    consistencyPolicy: {
-      defaultConsistencyLevel: 'Session'
-    }
-    enableFreeTier: environmentName != 'prod'
-  }
-}
-
-// Cosmos DB Database
-resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2021-10-15' = {
-  parent: cosmosAccount
-  name: 'vcarpool'
-  properties: {
-    resource: {
-      id: 'vcarpool'
-    }
-    options: {
-      throughput: 400
-    }
-  }
-}
-
-// Cosmos DB Containers
-resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2021-10-15' = {
-  parent: cosmosDatabase
-  name: 'users'
-  properties: {
-    resource: {
-      id: 'users'
-      partitionKey: {
-        paths: [
-          '/id'
-        ]
-        kind: 'Hash'
-      }
-      indexingPolicy: {
-        indexingMode: 'consistent'
-        automatic: true
-        includedPaths: [
-          {
-            path: '/*'
-          }
-        ]
-        excludedPaths: [
-          {
-            path: '/"_etag"/?'
-          }
-        ]
-      }
-    }
-  }
-}
-
-resource tripsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2021-10-15' = {
-  parent: cosmosDatabase
-  name: 'trips'
-  properties: {
-    resource: {
-      id: 'trips'
-      partitionKey: {
-        paths: [
-          '/driverId'
-        ]
-        kind: 'Hash'
-      }
-      indexingPolicy: {
-        indexingMode: 'consistent'
-        automatic: true
-        includedPaths: [
-          {
-            path: '/*'
-          }
-        ]
-        excludedPaths: [
-          {
-            path: '/"_etag"/?'
-          }
-        ]
-      }
-    }
-  }
-}
-
-resource schedulesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2021-10-15' = {
-  parent: cosmosDatabase
-  name: 'schedules'
-  properties: {
-    resource: {
-      id: 'schedules'
-      partitionKey: {
-        paths: [
-          '/userId'
-        ]
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
-resource swapRequestsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2021-10-15' = {
-  parent: cosmosDatabase
-  name: 'swap-requests'
-  properties: {
-    resource: {
-      id: 'swap-requests'
-      partitionKey: {
-        paths: [
-          '/requesterId'
-        ]
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
-resource emailTemplatesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2021-10-15' = {
-  parent: cosmosDatabase
-  name: 'email-templates'
-  properties: {
-    resource: {
-      id: 'email-templates'
-      partitionKey: {
-        paths: [
-          '/id'
-        ]
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
 // Key Vault for secrets
 resource keyVault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
   name: '${appName}-kv-${environmentName}'
@@ -327,14 +218,11 @@ resource keyVault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
       name: 'standard'
     }
     tenantId: subscription().tenantId
-    accessPolicies: [] // Access policies will be added separately to avoid circular dependency
+    accessPolicies: [] // Access policies will be configured post-deployment
     enabledForTemplateDeployment: true
     enableRbacAuthorization: false
   }
 }
-
-// Note: Key Vault Access Policy will be configured post-deployment
-// This avoids circular dependency issues during initial deployment
 
 // Static Web App for the frontend
 resource staticWebApp 'Microsoft.Web/staticSites@2021-03-01' = {

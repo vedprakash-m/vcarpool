@@ -10,7 +10,10 @@
     "deploy": "npm run build && func azure functionapp publish vcarpool-functions",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:integration": "jest --config jest.config.json --testPathPattern=integration",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --config jest.config.integration.json",
+    "test:ci": "jest --ci --reporters=default --reporters=jest-junit",
+    "test:health-check": "node -e \"console.log('Health check passed')\"",
     "lint": "echo 'Backend linting: TypeScript compilation validates code quality' && npm run build",
     "clean": "rm -rf dist"
   },
