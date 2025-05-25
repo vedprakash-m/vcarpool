@@ -277,18 +277,25 @@ jobs:
       
       - name: Configure Key Vault Secrets
         run: |
-          # Generate JWT secrets if they don't exist
+          # Check if Key Vault exists (only for full infrastructure deployments)
           KEY_VAULT_NAME="vcarpool-kv-${{ needs.setup.outputs.environment }}"
           
-          # Check if secrets exist, if not create them
-          if ! az keyvault secret show --vault-name $KEY_VAULT_NAME --name JWT-SECRET >/dev/null 2>&1; then
-            JWT_SECRET=$(openssl rand -base64 64)
-            az keyvault secret set --vault-name $KEY_VAULT_NAME --name JWT-SECRET --value "$JWT_SECRET"
-          fi
-          
-          if ! az keyvault secret show --vault-name $KEY_VAULT_NAME --name JWT-REFRESH-SECRET >/dev/null 2>&1; then
-            JWT_REFRESH_SECRET=$(openssl rand -base64 64)
-            az keyvault secret set --vault-name $KEY_VAULT_NAME --name JWT-REFRESH-SECRET --value "$JWT_REFRESH_SECRET"
+          if az keyvault show --name $KEY_VAULT_NAME >/dev/null 2>&1; then
+            echo "✅ Key Vault found: $KEY_VAULT_NAME"
+            
+            # Check if secrets exist, if not create them
+            if ! az keyvault secret show --vault-name $KEY_VAULT_NAME --name JWT-SECRET >/dev/null 2>&1; then
+              JWT_SECRET=$(openssl rand -base64 64)
+              az keyvault secret set --vault-name $KEY_VAULT_NAME --name JWT-SECRET --value "$JWT_SECRET"
+            fi
+            
+            if ! az keyvault secret show --vault-name $KEY_VAULT_NAME --name JWT-REFRESH-SECRET >/dev/null 2>&1; then
+              JWT_REFRESH_SECRET=$(openssl rand -base64 64)
+              az keyvault secret set --vault-name $KEY_VAULT_NAME --name JWT-REFRESH-SECRET --value "$JWT_REFRESH_SECRET"
+            fi
+          else
+            echo "ℹ️  Key Vault not found: $KEY_VAULT_NAME (using core infrastructure mode with temporary secrets)"
+            echo "JWT secrets are configured as Function App environment variables instead"
           fi
 
   # Deploy backend to Azure Functions
