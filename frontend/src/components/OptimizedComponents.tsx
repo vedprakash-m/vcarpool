@@ -37,9 +37,9 @@ export function withPerformanceMonitoring<P extends object>(
   WrappedComponent: ComponentType<P>,
   componentName?: string
 ) {
+  const componentDisplayName = componentName || WrappedComponent.displayName || WrappedComponent.name;
+  
   const PerformanceMonitoredComponent = memo((props: P) => {
-    const name = componentName || WrappedComponent.displayName || WrappedComponent.name;
-    
     React.useEffect(() => {
       const startTime = performance.now();
       
@@ -48,7 +48,7 @@ export function withPerformanceMonitoring<P extends object>(
         const renderTime = endTime - startTime;
         
         if (renderTime > 16) { // Frame budget is ~16ms
-          console.warn(`Slow render detected in ${name}: ${renderTime.toFixed(2)}ms`);
+          console.warn(`Slow render detected in ${componentDisplayName}: ${renderTime.toFixed(2)}ms`);
         }
       };
     });
@@ -56,7 +56,7 @@ export function withPerformanceMonitoring<P extends object>(
     return <WrappedComponent {...props} />;
   });
 
-  PerformanceMonitoredComponent.displayName = `withPerformanceMonitoring(${name})`;
+  PerformanceMonitoredComponent.displayName = `withPerformanceMonitoring(${componentDisplayName})`;
   return PerformanceMonitoredComponent;
 }
 

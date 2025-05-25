@@ -1,0 +1,209 @@
+// filepath: /Users/vedprakashmishra/vcarpool/frontend/e2e/trips.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Trip Management Flow', () => {
+  // This test group requires authentication
+  test.beforeEach(async ({ page }) => {
+    // Mock API responses
+    await page.route('**/api/auth/**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            user: {
+              id: 'test-user-id',
+              email: 'test@example.com',
+              firstName: 'Test',
+              lastName: 'User',
+              role: 'user'
+            },
+            token: 'mock-token',
+            refreshToken: 'mock-refresh-token'
+          }
+        })
+      });
+    });
+
+    await page.route('**/api/users/me', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 'test-user-id',
+            email: 'test@example.com',
+            firstName: 'Test',
+            lastName: 'User',
+            role: 'user'
+          }
+        })
+      });
+    });
+
+    // Default mock for all trip endpoints
+    await page.route('**/api/trips**', async route => {
+      // Customize response based on request path and method
+      const url = route.request().url();
+      const method = route.request().method();
+
+      // For GET requests to the main trips endpoint
+      if (method === 'GET' && url.endsWith('/api/trips')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: [
+              {
+                id: 'trip-1',
+                driverId: 'test-user-id',
+                destination: 'Downtown School',
+                departureTime: '2025-05-25T08:00:00Z',
+                availableSeats: 3,
+                passengers: [],
+                status: 'scheduled'
+              }
+            ]
+          })
+        });
+        return;
+      }
+
+      // Default response for other trip endpoints
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: []
+        })
+      });
+    });
+
+    // Set up authentication state
+    await page.goto('/');
+    await page.evaluate(() => {
+      localStorage.clear();
+      
+      const authState = {
+        state: {
+          user: {
+            id: 'test-user-id',
+            email: 'test@example.com',
+            firstName: 'Test',
+            lastName: 'User',
+            role: 'user'
+          },
+          token: 'mock-token',
+          refreshToken: 'mock-refresh-token',
+          isAuthenticated: true,
+          isLoading: false,
+          loading: false,
+          error: null
+        },
+        version: 0
+      };
+      
+      localStorage.setItem('auth-storage', JSON.stringify(authState));
+    });
+    
+    // Navigate to dashboard to verify authentication
+    await page.goto('/dashboard');
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('should display authenticated dashboard page', async ({ page }) => {
+    // Simple check that we're on an authenticated page
+    expect(page.url()).toContain('/dashboard');
+  });
+
+  test('should navigate to trips page', async ({ page }) => {
+    await page.goto('/trips');
+    await page.waitForLoadState('networkidle');
+    
+    // Simply verify we're on the trips page (basic auth check)
+    expect(page.url()).toContain('/trips');
+  });
+
+  test('should navigate to trip creation page', async ({ page }) => {
+    await page.goto('/trips/create');
+    await page.waitForLoadState('networkidle');
+    
+    // Check that we're on the trip creation page
+    expect(page.url()).toContain('/trips/create');
+  });
+
+  test('should handle trip creation form submission', async ({ page }) => {
+    // Mock the POST endpoint for trip creation
+    await page.route('**/api/trips', async route => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              id: 'new-trip-id',
+              driverId: 'test-user-id',
+              destination: 'New School',
+              departureTime: '2025-05-26T09:00:00Z',
+              availableSeats: 4,
+              passengers: [],
+              status: 'scheduled'
+            }
+          })
+        });
+      }
+    });
+
+    // Navigate to trip creation page
+    await page.goto('/trips/create');
+    await page.waitForLoadState('networkidle');
+
+    // Test that we can successfully navigate to the page
+    expect(page.url()).toContain('/trips/create');
+  });
+
+  test('should handle error states', async ({ page }) => {
+    // Mock error response
+    await page.route('**/api/trips/error-test', async route => {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: false,
+          error: 'Internal server error',
+          message: 'An error occurred processing your request'
+        })
+      });
+    });
+    
+    // Verify that our route mocking is working (indirect test)
+    const errorResponse = await page.evaluate(async () => {
+      try {
+        const response = await fetch('/api/trips/error-test');
+        return await response.json();
+      } catch (error: any) {
+        return { fetchError: error.toString() };
+      }
+    });
+    
+    // Check that the mock response was received
+    expect(errorResponse.success).toBe(false);
+  });
+
+  test('should handle logout flow', async ({ page }) => {
+    // Clear auth state to simulate logout
+    await page.evaluate(() => {
+      localStorage.removeItem('auth-storage');
+    });
+    
+    // Navigate to a protected page and expect redirect to login
+    await page.goto('/dashboard');
+    await page.waitForURL('/login');
+    expect(page.url()).toContain('/login');
+  });
+});

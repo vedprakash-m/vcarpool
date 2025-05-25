@@ -8,7 +8,7 @@
     "dev": "npm run build && func start",
     "start": "func start",
     "deploy": "npm run build && func azure functionapp publish vcarpool-functions",
-    "test": "jest --passWithNoTests",
+    "test": "jest",
     "test:watch": "jest --watch",
     "test:integration": "jest --config jest.config.json --testPathPattern=integration",
     "lint": "echo 'Backend linting: TypeScript compilation validates code quality' && npm run build",

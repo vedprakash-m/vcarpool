@@ -6,6 +6,12 @@ import { useAuthStore } from '../../store/auth.store';
 import { useTripStore } from '../../store/trip.store';
 import DashboardLayout from '../../components/DashboardLayout';
 import { SectionErrorBoundary } from '../../components/SectionErrorBoundary';
+import { 
+  VirtualizedList, 
+  PerformanceErrorBoundary, 
+  withPerformanceMonitoring,
+  createMemoizedComponent 
+} from '../../components/OptimizedComponents';
 import { Trip, TripStatus } from '@vcarpool/shared';
 import { 
   CalendarIcon,
@@ -26,7 +32,7 @@ interface TripCardProps {
   onLeaveTrip?: (tripId: string) => void;
 }
 
-function TripCard({ trip, currentUserId, onJoinTrip, onLeaveTrip }: TripCardProps) {
+const TripCard = createMemoizedComponent<TripCardProps>(({ trip, currentUserId, onJoinTrip, onLeaveTrip }) => {
   const isDriver = trip.driverId === currentUserId;
   const isPassenger = trip.passengers.includes(currentUserId);
   const canJoin = !isDriver && !isPassenger && trip.availableSeats > 0 && trip.status === 'planned';
@@ -135,9 +141,10 @@ function TripCard({ trip, currentUserId, onJoinTrip, onLeaveTrip }: TripCardProp
       </div>
     </div>
   );
-}
+});
 
-export default function TripsPage() {
+// Performance monitoring for the main page component
+const TripsPage = withPerformanceMonitoring(() => {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
   const { trips, loading, error, fetchMyTrips, fetchAvailableTrips, joinTrip, leaveTrip, clearError } = useTripStore();
@@ -278,19 +285,50 @@ export default function TripsPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {trips.map((trip) => (
-              <TripCard
-                key={trip.id}
-                trip={trip}
-                currentUserId={user.id}
-                onJoinTrip={handleJoinTrip}
-                onLeaveTrip={handleLeaveTrip}
+          <div className="relative">
+            {trips.length > 10 ? (
+              // Use virtualized list for better performance with many trips
+              <VirtualizedList
+                items={trips}
+                itemHeight={200}
+                containerHeight={600}
+                className="space-y-4"
+                renderItem={(trip, index) => (
+                  <div className="px-2">
+                    <TripCard
+                      trip={trip}
+                      currentUserId={user.id}
+                      onJoinTrip={handleJoinTrip}
+                      onLeaveTrip={handleLeaveTrip}
+                    />
+                  </div>
+                )}
               />
-            ))}
+            ) : (
+              // Use regular grid for smaller lists
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {trips.map((trip) => (
+                  <TripCard
+                    key={trip.id}
+                    trip={trip}
+                    currentUserId={user.id}
+                    onJoinTrip={handleJoinTrip}
+                    onLeaveTrip={handleLeaveTrip}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
     </DashboardLayout>
+  );
+}, 'TripsPage');
+
+export default function TripsPageWithErrorBoundary() {
+  return (
+    <PerformanceErrorBoundary>
+      <TripsPage />
+    </PerformanceErrorBoundary>
   );
 }

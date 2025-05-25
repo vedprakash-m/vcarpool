@@ -80,6 +80,6 @@ module.exports = {
   // Error handling
   errorOnDeprecated: true,
   
-  // Test result processor
-  testResultsProcessor: '<rootDir>/tests/test-results-processor.js'
+  // Test result processor - commented out for CI compatibility
+  // testResultsProcessor: '<rootDir>/tests/test-results-processor.js'
 };
