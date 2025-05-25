@@ -205,7 +205,7 @@ jobs:
         if: always()
         with:
           name: frontend-dist
-          path: ${{ env.FRONTEND_WORKING_DIR }}/.next
+          path: .next
           if-no-files-found: ignore
 
   # Deploy infrastructure
