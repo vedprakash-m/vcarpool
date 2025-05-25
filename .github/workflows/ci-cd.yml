@@ -216,18 +216,18 @@ jobs:
       - name: Copy .next directory to dedicated upload directory
         run: |
           echo "Creating a dedicated upload directory for the Next.js build artifacts"
-          mkdir -p ../frontend-dist
-          cp -r .next/* ../frontend-dist/
+          mkdir -p /tmp/frontend-dist
+          cp -r .next/* /tmp/frontend-dist/
           echo "Contents of frontend-dist directory:"
-          find ../frontend-dist -type d -maxdepth 2 | sort
-          echo "Total files: $(find ../frontend-dist -type f | wc -l)"
+          find /tmp/frontend-dist -type d -maxdepth 2 | sort
+          echo "Total files: $(find /tmp/frontend-dist -type f | wc -l)"
       
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: frontend-dist
-          path: ../frontend-dist/
+          path: /tmp/frontend-dist/
           if-no-files-found: warn
 
   # Deploy infrastructure
