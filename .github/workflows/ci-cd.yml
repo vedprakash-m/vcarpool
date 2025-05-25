@@ -69,6 +69,7 @@ jobs:
         run: npm run build
       - name: Run tests
         run: npm test
+        working-directory: ./shared # Run from shared directory
       - name: Upload shared artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -104,7 +105,8 @@ jobs:
       - name: Build backend
         run: npm run build
       - name: Run backend tests
-        run: npm test
+        run: npm run test --workspace=@vcarpool/backend
+        working-directory: ./ # Run from root with workspace command
       - name: Upload backend artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -140,11 +142,14 @@ jobs:
       - name: Build frontend
         run: npm run build
       - name: Run Jest unit tests # Clarified name
-        run: npm test
+        run: npm run test --workspace=@vcarpool/frontend
+        working-directory: ./ # Run from root with workspace command
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
       - name: Run Playwright E2E tests
-        run: npx playwright test
+        run: npm run test:e2e --workspace=@vcarpool/frontend
+        working-directory: ./ # Run from root with workspace command
       - name: Upload Playwright report
         if: always() # Upload report even if tests fail
         uses: actions/upload-artifact@v4
