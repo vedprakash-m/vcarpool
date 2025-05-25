@@ -8,6 +8,14 @@ export default defineConfig({
   /* The directory where we'll store failed test artifacts */
   outputDir: './e2e/test-results',
   
+  /* Timeout for each test */
+  timeout: 60000, // 60 seconds for CI environments
+  
+  /* Timeout for expect assertions */
+  expect: {
+    timeout: 10000, // 10 seconds for assertions
+  },
+  
   /* Run tests in files in parallel */
   fullyParallel: true,
   
@@ -23,7 +31,7 @@ export default defineConfig({
   /* Shared settings for all the projects below */
   use: {
     /* Base URL to use in navigations */
-    baseURL: process.env.E2E_TEST_URL || 'http://localhost:3000',
+    baseURL: process.env.CI ? 'http://localhost:3000' : (process.env.E2E_TEST_URL || 'http://localhost:3000'),
     
     /* Collect trace on failure, or when explicitly requested */
     trace: 'on-first-retry',
@@ -36,7 +44,14 @@ export default defineConfig({
   },
   
   /* Configure projects for different browsers */
-  projects: [
+  projects: process.env.CI ? [
+    // In CI, only run on Chromium for speed and stability
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ] : [
+    // In local development, test on multiple browsers
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
@@ -62,10 +77,16 @@ export default defineConfig({
   ],
   
   /* Run local development server before the tests */
-  webServer: {
-    command: process.env.CI ? '' : 'next dev',
+  webServer: process.env.CI ? {
+    command: 'npx next start',
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
+    timeout: 120000, // 2 minutes
+    cwd: '.',
+  } : {
+    command: 'next dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: true,
     timeout: 120000, // 2 minutes
     cwd: '.',
   },

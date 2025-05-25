@@ -22,7 +22,7 @@ test.describe('Trip Management Flow', () => {
     
     // Verify authentication succeeded by navigating to dashboard
     await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   });
 
   test('should display authenticated dashboard page with user info', async ({ page }) => {
@@ -66,7 +66,7 @@ test.describe('Trip Management Flow', () => {
     
     // Then navigate to trip creation page
     await page.goto('/trips/create');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     
     // Take a screenshot for verification
     await page.screenshot({ path: 'e2e/test-results/trip-creation-attempt.png' });
@@ -185,7 +185,7 @@ test.describe('Trip Management Flow', () => {
   test('should verify login page after direct navigation', async ({ page }) => {
     // We'll just directly navigate to the login page to verify it's accessible
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     
     // Take a screenshot of the login page
     await page.screenshot({ path: 'e2e/test-results/login-page-direct.png' });
