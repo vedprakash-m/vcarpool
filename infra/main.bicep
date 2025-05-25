@@ -141,11 +141,11 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
         }
         {
           name: 'JWT_SECRET'
-          value: '@Microsoft.KeyVault(SecretUri=https://${keyVault.name}.vault.azure.net/secrets/JWT-SECRET/)'
+          value: 'temp-jwt-secret' // Will be updated via Key Vault reference after deployment
         }
         {
           name: 'JWT_REFRESH_SECRET'
-          value: '@Microsoft.KeyVault(SecretUri=https://${keyVault.name}.vault.azure.net/secrets/JWT-REFRESH-SECRET/)'
+          value: 'temp-refresh-secret' // Will be updated via Key Vault reference after deployment
         }
         {
           name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
@@ -321,6 +321,17 @@ resource keyVault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
       name: 'standard'
     }
     tenantId: subscription().tenantId
+    accessPolicies: [] // Access policies will be added separately to avoid circular dependency
+    enabledForTemplateDeployment: true
+    enableRbacAuthorization: false
+  }
+}
+
+// Key Vault Access Policy for Function App (separate resource to avoid circular dependency)
+resource keyVaultAccessPolicy 'Microsoft.KeyVault/vaults/accessPolicies@2021-11-01-preview' = {
+  parent: keyVault
+  name: 'add'
+  properties: {
     accessPolicies: [
       {
         objectId: functionApp.identity.principalId
@@ -333,8 +344,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
         }
       }
     ]
-    enabledForTemplateDeployment: true
-    enableRbacAuthorization: false
   }
 }
 
@@ -358,3 +367,7 @@ resource staticWebApp 'Microsoft.Web/staticSites@2021-03-01' = {
 output functionAppEndpoint string = 'https://${functionApp.properties.defaultHostName}/api'
 output staticWebAppEndpoint string = 'https://${staticWebApp.properties.defaultHostname}'
 output cosmosDbEndpoint string = cosmosAccount.properties.documentEndpoint
+
+// Output resource names for CI/CD pipeline
+output functionAppName string = functionApp.name
+output staticWebAppName string = staticWebApp.name
