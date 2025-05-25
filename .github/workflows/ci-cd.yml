@@ -61,7 +61,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
+          cache-dependency-path: shared/package-lock.json # Specific to shared
       - name: Install dependencies
         run: npm ci
       - name: Build shared library
@@ -88,15 +88,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
+          cache-dependency-path: backend/package-lock.json # Specific to backend
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
         with:
           name: shared-dist
           path: ${{ env.SHARED_WORKING_DIR }}/dist
-      - name: Install shared library
-        working-directory: ${{ env.SHARED_WORKING_DIR }}
-        run: npm ci
+      # Removed "Install shared library" step as it's redundant and potentially problematic here.
+      # Backend's `npm ci` should handle the `file:../shared` dependency.
       - name: Install backend dependencies
         run: npm ci
       - name: Lint backend code
