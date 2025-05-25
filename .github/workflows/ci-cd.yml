@@ -354,24 +354,18 @@ jobs:
 
   # Deploy frontend to Azure Static Web Apps
   frontend-deploy:
-    needs: [setup, infrastructure-deploy]
+    needs: [setup, infrastructure-deploy, frontend-build]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: ${{ needs.setup.outputs.environment }}
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
-      - name: Download shared artifacts
+      - name: Download frontend artifacts
         uses: actions/download-artifact@v4
         with:
-          name: shared-dist
-          path: ${{ env.SHARED_WORKING_DIR }}/dist
+          name: frontend-dist
+          path: ${{ env.FRONTEND_WORKING_DIR }}/.next
       
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
@@ -380,10 +374,10 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           app_location: ${{ env.FRONTEND_WORKING_DIR }}
-          output_location: ".next"
-          skip_app_build: false
+          app_artifact_location: ".next"
+          skip_app_build: true
+          skip_api_build: true
           config_file_location: ${{ env.FRONTEND_WORKING_DIR }}
-          api_build_command: "echo 'API build not needed - using Azure Functions'"
 
   # Post-deployment tests
   integration-tests:
