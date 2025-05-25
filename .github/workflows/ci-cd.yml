@@ -213,13 +213,22 @@ jobs:
           name: playwright-report
           path: ${{ env.FRONTEND_WORKING_DIR }}/playwright-report/
           retention-days: 30
+      - name: Copy .next directory to dedicated upload directory
+        run: |
+          echo "Creating a dedicated upload directory for the Next.js build artifacts"
+          mkdir -p ../frontend-dist
+          cp -r .next/* ../frontend-dist/
+          echo "Contents of frontend-dist directory:"
+          find ../frontend-dist -type d -maxdepth 2 | sort
+          echo "Total files: $(find ../frontend-dist -type f | wc -l)"
+      
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: frontend-dist
-          path: .next
-          if-no-files-found: ignore
+          path: ../frontend-dist/
+          if-no-files-found: warn
 
   # Deploy infrastructure
   infrastructure-deploy:
@@ -379,7 +388,32 @@ jobs:
         with:
           name: frontend-dist
           path: ${{ env.FRONTEND_WORKING_DIR }}/.next
+          
+      - name: Verify downloaded artifacts
+        run: |
+          echo "Verifying downloaded Next.js artifacts"
+          if [ -d "${{ env.FRONTEND_WORKING_DIR }}/.next" ]; then
+            echo "✅ .next directory exists"
+            find ${{ env.FRONTEND_WORKING_DIR }}/.next -type d -maxdepth 2 | sort
+            echo "Total files: $(find ${{ env.FRONTEND_WORKING_DIR }}/.next -type f | wc -l)"
+          else
+            echo "❌ .next directory not found"
+            ls -la ${{ env.FRONTEND_WORKING_DIR }}
+            exit 1
+          fi
       
+      # Prepare staticwebapp.config.json with API endpoint
+      - name: Configure staticwebapp.config.json
+        run: |
+          # Replace API_ENDPOINT placeholder with actual function app endpoint
+          FUNCTION_APP_ENDPOINT="${{ needs.infrastructure-deploy.outputs.functionAppEndpoint }}"
+          if [ -n "$FUNCTION_APP_ENDPOINT" ]; then
+            # Extract hostname without https:// prefix
+            API_HOSTNAME=$(echo $FUNCTION_APP_ENDPOINT | sed -e 's|^https://||' -e 's|/.*$||')
+            echo "Setting API endpoint to $API_HOSTNAME"
+            sed -i "s/\${API_ENDPOINT}/$API_HOSTNAME/g" ${{ env.FRONTEND_WORKING_DIR }}/staticwebapp.config.json
+          fi
+          
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -391,6 +425,7 @@ jobs:
           skip_app_build: true
           skip_api_build: true
           config_file_location: ${{ env.FRONTEND_WORKING_DIR }}
+          production_branch: "main"
 
   # Post-deployment tests
   integration-tests:
