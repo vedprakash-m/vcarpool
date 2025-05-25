@@ -478,3 +478,4 @@ This application represents a comprehensive, enterprise-grade carpool management
 - **Infrastructure Management**: Intelligent resource management and optimization
 
 The enhanced monitoring, security, and performance features make this suitable for production environments with enterprise-level requirements for reliability, security, and observability.
+# Updated Azure Static Web App deployment token
