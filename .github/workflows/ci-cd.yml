@@ -186,7 +186,7 @@ jobs:
         run: |
           az group create \
             --name ${{ needs.setup.outputs.resource-group }} \
-            --location "East US"
+            --location "West US 2"
       
       - name: Deploy Azure Infrastructure
         id: deploy
