@@ -151,6 +151,19 @@ jobs:
         run: npm run lint
       - name: Build frontend
         run: npm run build
+      - name: Debug - List build output
+        run: |
+          echo "=== Contents of frontend directory after build ==="
+          ls -la
+          echo "=== Checking for .next directory ==="
+          if [ -d ".next" ]; then
+            echo "✅ .next directory exists"
+            ls -la .next/ | head -20
+          else
+            echo "❌ .next directory not found"
+          fi
+          echo "=== Checking for other build outputs ==="
+          find . -maxdepth 2 -name "*build*" -o -name "*dist*" -o -name "*out*" 2>/dev/null || echo "No build directories found"
       - name: Run Jest unit tests # Clarified name
         run: npm test
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
