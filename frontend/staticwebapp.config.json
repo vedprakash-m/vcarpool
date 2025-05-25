@@ -1,15 +1,15 @@
 {
   "routes": [
     {
-      "route": "/api/*",
-      "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-      "allowedRoles": ["authenticated"],
-      "rewrite": "https://${API_ENDPOINT}/api/$1"
-    },
-    {
       "route": "/health",
       "methods": ["GET"],
       "rewrite": "https://${API_ENDPOINT}/api/health"
+    },
+    {
+      "route": "/api/auth/*",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"],
+      "rewrite": "https://${API_ENDPOINT}/api/auth/$1"
     },
     {
       "route": "/login",
@@ -24,9 +24,10 @@
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/auth/*",
-      "methods": ["POST"],
-      "allowedRoles": ["anonymous"]
+      "route": "/api/*",
+      "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+      "allowedRoles": ["authenticated"],
+      "rewrite": "https://${API_ENDPOINT}/api/$1"
     },
     {
       "route": "/*",
