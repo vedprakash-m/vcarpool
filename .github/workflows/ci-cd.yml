@@ -76,11 +76,19 @@ jobs:
       - name: Run tests
         run: npm test
         working-directory: ./shared
+      - name: Verify dist directory exists
+        run: |
+          echo "Contents of shared/dist:"
+          ls -la ${{ env.SHARED_WORKING_DIR }}/dist
+          if [ ! -d "${{ env.SHARED_WORKING_DIR }}/dist" ]; then
+            echo "Error: Shared dist directory was not created during build"
+            exit 1
+          fi
       - name: Upload shared artifacts
         uses: actions/upload-artifact@v4
         with:
           name: shared-dist
-          path: ${{ env.SHARED_WORKING_DIR }}/dist/**/*
+          path: ${{ env.SHARED_WORKING_DIR }}/dist
           retention-days: 1
           if-no-files-found: error
 
@@ -99,11 +107,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: package-lock.json # Root workspace lock file
+      - name: Create shared directory
+        run: mkdir -p ${{ env.SHARED_WORKING_DIR }}
+        
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
         with:
           name: shared-dist
           path: ${{ env.SHARED_WORKING_DIR }}
+          
       - name: Verify shared artifacts
         run: |
           echo "Contents of shared directory:"
