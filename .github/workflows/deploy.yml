@@ -1,0 +1,115 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Build and Test"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  NODE_VERSION: '18.x'
+  AZURE_FUNCTIONAPP_NAME: vcarpool-api
+  AZURE_STATICWEBAPP_NAME: vcarpool-web
+  BACKEND_WORKING_DIR: ./backend
+  FRONTEND_WORKING_DIR: ./frontend
+  SHARED_WORKING_DIR: ./shared
+
+permissions:
+  contents: read
+  deployments: write
+  pages: write
+  id-token: write
+
+jobs:
+  check-build:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-environment.outputs.environment }}
+    steps:
+      - name: Set environment
+        id: set-environment
+        run: |
+          if [[ ${{ github.event.workflow_run.head_branch }} == 'main' ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-infrastructure:
+    needs: check-build
+    runs-on: ubuntu-latest
+    environment: ${{ needs.check-build.outputs.environment }}
+    env:
+      INFRASTRUCTURE_WORKING_DIR: ./infra
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: ${{ env.BACKEND_WORKING_DIR }}
+      - name: Deploy infrastructure
+        run: |
+          if [ -d "${{ env.INFRASTRUCTURE_WORKING_DIR }}" ]; then
+            cd ${{ env.INFRASTRUCTURE_WORKING_DIR }}
+            # Add your infrastructure deployment commands here
+            echo "Deploying infrastructure to ${{ needs.check-build.outputs.environment }}"
+          else
+            echo "No infrastructure directory found, skipping infrastructure deployment"
+          fi
+
+  deploy-backend:
+    needs: [check-build, deploy-infrastructure]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.check-build.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: ${{ env.BACKEND_WORKING_DIR }}
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          slot-name: ${{ needs.check-build.outputs.environment == 'production' && 'production' || 'staging' }}
+          package: ${{ env.BACKEND_WORKING_DIR }}
+
+  deploy-frontend:
+    needs: [check-build, deploy-infrastructure]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.check-build.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: ${{ env.FRONTEND_WORKING_DIR }}
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: ${{ env.FRONTEND_WORKING_DIR }}
+          output_location: 'out'

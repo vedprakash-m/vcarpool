@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Matches semantic versioning tags (v1.0.0, v2.1.3, etc.)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+
+env:
+  NODE_VERSION: '18.x'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+      - name: Get version
+        id: get-version
+        run: |
+          if [[ ${{ github.event_name == 'workflow_dispatch' }} ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get-version.outputs.version }}
+          release_name: Release v${{ steps.get-version.outputs.version }}
+          draft: false
+          prerelease: false
+      - name: Set up Node.js
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          always-auth: true
+          scope: '@vcarpool'  # Update this to your npm scope if different
+
+      - name: Check if NPM publish is needed
+        id: check-npm-publish
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # Check if NPM token is available in secrets
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "NPM_TOKEN not found in secrets"
+            echo "publish_needed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Get package info
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          
+          # Check if version exists
+          if npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version >/dev/null 2>&1; then
+            echo "Version $PACKAGE_VERSION of $PACKAGE_NAME is already published"
+            echo "publish_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version $PACKAGE_VERSION of $PACKAGE_NAME needs to be published"
+            echo "publish_needed=true" >> $GITHUB_OUTPUT
+          fi
+        working-directory: ./shared
+
+      - name: Configure NPM for publishing
+        if: steps.check-npm-publish.outputs.publish_needed == 'true'
+        run: |
+          # Create .npmrc file with auth token and registry settings
+          echo "@vcarpool:registry=https://registry.npmjs.org/" > .npmrc
+          echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" >> .npmrc
+          
+          # Also set in npm config for any CLI commands
+          npm config set @vcarpool:registry=https://registry.npmjs.org/
+          npm config set //registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN
+          
+          # Verify configuration
+          echo "NPM configuration:"
+          cat .npmrc
+        working-directory: ./shared
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to NPM
+        if: steps.check-npm-publish.outputs.publish_needed == 'true'
+        run: |
+          # Get package info
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          
+          echo "Publishing $PACKAGE_NAME@$PACKAGE_VERSION to NPM..."
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
+          
+          # Publish with provenance for supply chain security
+          if ! npm publish --access public --provenance; then
+            echo "::error::Failed to publish $PACKAGE_NAME@$PACKAGE_VERSION to NPM"
+            exit 1
+          fi
+          
+          echo "::notice::Successfully published $PACKAGE_NAME@$PACKAGE_VERSION to NPM"
+        working-directory: ./shared
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

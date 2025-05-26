@@ -1,0 +1,114 @@
+name: Cleanup Workflow
+
+on:
+  schedule:
+    # Run at 1 AM every Sunday
+    - cron: '0 1 * * 0'
+  workflow_dispatch:
+
+# This workflow requires the following permissions:
+# - actions:read (to list workflow runs)
+# - actions:write (to delete workflow runs and artifacts)
+# - contents:read (to check out the repository)
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup-artifacts:
+    name: Clean up artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: List and delete old artifacts
+        run: |
+          # Get all non-expired artifacts
+          echo "Fetching artifacts..."
+          ARTIFACTS=$(gh api --paginate /repos/${{ github.repository }}/actions/artifacts \
+            --jq '.artifacts[] | select(.expired == false) | "\(.id)	\(.created_at)"' 2>/dev/null || true)
+
+          if [ -z "$ARTIFACTS" ]; then
+            echo "No artifacts found to clean up"
+            exit 0
+          fi
+
+          # Sort by date (newest first), skip first 5, and get IDs
+          echo "Found $(echo "$ARTIFACTS" | wc -l) artifacts"
+          ARTIFACT_IDS=$(echo "$ARTIFACTS" | sort -k2 -r | tail -n +6 | cut -f1)
+
+          if [ -z "$ARTIFACT_IDS" ]; then
+            echo "No artifacts to delete (keeping the 5 most recent)"
+            exit 0
+          fi
+
+          echo "Deleting $(echo "$ARTIFACT_IDS" | wc -l) artifacts..."
+          for ID in $ARTIFACT_IDS; do
+            echo "Deleting artifact $ID"
+            gh api -X DELETE /repos/${{ github.repository }}/actions/artifacts/$ID \
+              || echo "Failed to delete artifact $ID"
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  cleanup-workflow-runs:
+    name: Clean up workflow runs
+    runs-on: ubuntu-latest
+    needs: cleanup-artifacts
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: List and delete old workflow runs
+        run: |
+          # Get all workflow runs that are completed and older than 30 days
+          echo "Fetching workflow runs..."
+          RUNS=$(gh api --paginate /repos/${{ github.repository }}/actions/runs \
+            --jq '.workflow_runs[] | select((.status != "in_progress" and .status != "queued") and (.created_at < (now - 2592000|tostring))) | "\(.id)	\(.created_at)	\(.name)"' 2>/dev/null || true)
+
+          if [ -z "$RUNS" ]; then
+            echo "No workflow runs to clean up"
+            exit 0
+          fi
+
+          # Sort by date (newest first), group by workflow, and keep 5 most recent per workflow
+          echo "Found $(echo "$RUNS" | wc -l) workflow runs to process"
+          
+          # Get unique workflow names
+          WORKFLOW_NAMES=$(echo "$RUNS" | cut -f3 | sort -u)
+          
+          for WORKFLOW in $WORKFLOW_NAMES; do
+            echo "\nProcessing workflow: $WORKFLOW"
+            # Get IDs for this workflow, skip first 5
+            WORKFLOW_IDS=$(echo "$RUNS" | grep -F "	$WORKFLOW$" | sort -k2 -r | tail -n +6 | cut -f1)
+            
+            if [ -z "$WORKFLOW_IDS" ]; then
+              echo "  Keeping all runs (5 or fewer) for workflow '$WORKFLOW'"
+              continue
+            fi
+            
+            echo "  Deleting $(echo "$WORKFLOW_IDS" | wc -l) runs for workflow '$WORKFLOW'"
+            for ID in $WORKFLOW_IDS; do
+              echo "  Deleting run $ID"
+              gh api -X DELETE /repos/${{ github.repository }}/actions/runs/$ID \
+                || echo "  Failed to delete run $ID"
+            done
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

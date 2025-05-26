@@ -109,11 +109,19 @@ jobs:
             exit 1
           fi
           
+      - name: Prepare shared artifacts
+        run: |
+          echo "Preparing shared artifacts..."
+          mkdir -p /tmp/shared-artifacts
+          cp -r ${{ env.SHARED_WORKING_DIR }}/dist /tmp/shared-artifacts/
+          echo "Contents of shared artifacts directory:"
+          ls -la /tmp/shared-artifacts
+          
       - name: Upload shared artifacts
         uses: actions/upload-artifact@v4
         with:
           name: shared-dist
-          path: ${{ env.SHARED_WORKING_DIR }}/dist/**/*
+          path: /tmp/shared-artifacts/**/*
           retention-days: 1
           if-no-files-found: error
 

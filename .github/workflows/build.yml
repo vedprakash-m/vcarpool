@@ -1,0 +1,175 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18.x'
+  CACHE_VERSION: 'v1'
+  AZURE_FUNCTIONAPP_NAME: vcarpool-api
+  AZURE_STATICWEBAPP_NAME: vcarpool-web
+  BACKEND_WORKING_DIR: ./backend
+  FRONTEND_WORKING_DIR: ./frontend
+  SHARED_WORKING_DIR: ./shared
+  INFRASTRUCTURE_WORKING_DIR: ./infra
+
+# Set default permissions for all jobs in the workflow
+permissions:
+  contents: read
+  packages: write
+  actions: read
+  security-events: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.environment.outputs.environment }}
+      ref: ${{ steps.ref.outputs.ref }}
+    steps:
+      - name: Set environment
+        id: environment
+        run: |
+          if [[ ${{ github.ref }} == 'refs/heads/main' ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+      - name: Set ref
+        id: ref
+        run: echo "ref=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+
+  install-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js and install dependencies
+        uses: ./.github/workflows/reusable/node-setup.yml
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+  shared-build:
+    needs: [setup, install-dependencies]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js and install dependencies
+        uses: ./.github/workflows/reusable/node-setup.yml
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          working-directory: ${{ env.SHARED_WORKING_DIR }}
+      - name: Build shared library
+        run: |
+          echo "Building shared library..."
+          npm run build
+          echo "Build completed. Contents of dist:"
+          ls -la dist/
+        working-directory: ${{ env.SHARED_WORKING_DIR }}
+      - name: Upload shared artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-dist
+          path: ${{ env.SHARED_WORKING_DIR }}/dist
+          retention-days: 1
+
+  backend-build:
+    needs: shared-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js and install dependencies
+        uses: ./.github/workflows/reusable/node-setup.yml
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          working-directory: ${{ env.BACKEND_WORKING_DIR }}
+      - name: Download shared artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: shared-dist
+          path: ${{ env.SHARED_WORKING_DIR }}
+      - name: Build backend
+        run: npm run build
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+      - name: Run backend tests
+        run: npm test
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+      - name: Run security audit
+        run: npm audit --production
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+        continue-on-error: true  # Don't fail the build on audit failures, but still report them
+      - name: Upload backend artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: ${{ env.BACKEND_WORKING_DIR }}/dist
+          retention-days: 1
+
+  frontend-build:
+    needs: shared-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js and install dependencies
+        uses: ./.github/workflows/reusable/node-setup.yml
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+      - name: Download shared artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: shared-dist
+          path: ${{ env.SHARED_WORKING_DIR }}
+      - name: Build frontend
+        run: npm run build
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+      - name: Run frontend tests
+        run: npm test
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+      - name: Run security audit
+        run: npm audit --production
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+        continue-on-error: true  # Don't fail the build on audit failures, but still report them
+      - name: Upload frontend artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: ${{ env.FRONTEND_WORKING_DIR }}/.next
+          retention-days: 1
+
+  integration-tests:
+    needs: [backend-build, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js and install dependencies
+        uses: ./.github/workflows/reusable/node-setup.yml
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: ${{ env.BACKEND_WORKING_DIR }}
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: ${{ env.FRONTEND_WORKING_DIR }}
+      - name: Start backend server
+        run: |
+          npm install -g @azure/static-web-apps-cli
+          swa start ${{ env.BACKEND_WORKING_DIR }} --api-location ${{ env.BACKEND_WORKING_DIR }}/dist --port 7071 &
+          echo "BACKEND_URL=http://localhost:7071" >> $GITHUB_ENV
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+      - name: Run integration tests
+        env:
+          BACKEND_URL: http://localhost:7071
+        run: |
+          echo "Running integration tests against $BACKEND_URL"
+          npm run test:e2e
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
