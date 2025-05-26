@@ -193,27 +193,42 @@ jobs:
       - name: Prepare frontend artifacts
         id: prepare-artifacts
         run: |
-          # Create a clean directory for the frontend artifacts
+          # Set artifact directory
           ARTIFACT_DIR="/tmp/frontend-dist"
-          echo "Preparing artifacts in $ARTIFACT_DIR"
+          echo "=== Preparing artifacts in $ARTIFACT_DIR ==="
           
-          # Ensure the directory exists and is empty
-          rm -rf "$ARTIFACT_DIR"
-          mkdir -p "$ARTIFACT_DIR"
+          # Show current working directory and contents
+          echo "Current working directory:"
+          pwd
+          echo "Directory contents:"
+          ls -la
           
-          # Copy the .next directory
-          echo "Copying .next directory..."
+          # Verify .next directory exists
           if [ ! -d ".next" ]; then
             echo "Error: .next directory not found in working directory"
+            echo "Current directory contents:"
             ls -la .
             exit 1
           fi
           
-          # Copy the entire .next directory
-          cp -r .next "$ARTIFACT_DIR/"
+          # Show contents of .next directory
+          echo "Contents of .next directory:"
+          ls -la .next/
+          
+          # Create artifact directory
+          echo "Creating artifact directory: $ARTIFACT_DIR"
+          mkdir -p "$ARTIFACT_DIR"
+          
+          # Copy the .next directory
+          echo "Copying .next directory to $ARTIFACT_DIR"
+          if ! cp -r .next "$ARTIFACT_DIR/"; then
+            echo "Error: Failed to copy .next directory"
+            exit 1
+          fi
           
           # Verify the copy was successful
-          if [ $? -ne 0 ]; then
+          echo "Verifying copied files..."
+          if [ ! -d "$ARTIFACT_DIR/.next" ]; then
             echo "Error: Failed to copy .next directory"
             exit 1
           fi
@@ -228,41 +243,75 @@ jobs:
           # Verify we have the required files
           if [ ! -f "$ARTIFACT_DIR/.next/BUILD_ID" ]; then
             echo "Error: BUILD_ID file is missing from .next directory"
-            find "$ARTIFACT_DIR" -type f | sort
+            echo "All files in $ARTIFACT_DIR/.next:"
+            find "$ARTIFACT_DIR/.next" -type f | sort
             exit 1
           fi
+          
+          # Create a test file to verify the directory is writable
+          echo "Creating test file in $ARTIFACT_DIR"
+          echo "test" > "$ARTIFACT_DIR/test.txt"
           
           echo "Artifacts prepared successfully in $ARTIFACT_DIR"
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
       
-      - name: Verify artifact directory before upload
-        id: verify-artifacts
+      - name: Verify and prepare for artifact upload
+        id: verify-upload
         run: |
-          echo "Verifying artifact directory structure..."
-          if [ ! -d "/tmp/frontend-dist" ]; then
-            echo "Error: /tmp/frontend-dist directory does not exist"
+          ARTIFACT_DIR="/tmp/frontend-dist"
+          echo "=== Verifying artifact directory for upload ==="
+          
+          # Check if directory exists
+          if [ ! -d "$ARTIFACT_DIR" ]; then
+            echo "Error: Artifact directory $ARTIFACT_DIR does not exist"
+            echo "Contents of /tmp:"
             ls -la /tmp/
             exit 1
           fi
           
-          echo "Contents of /tmp/frontend-dist:"
-          ls -la /tmp/frontend-dist
+          # Check directory contents
+          echo "Contents of $ARTIFACT_DIR:"
+          ls -la "$ARTIFACT_DIR"
           
-          if [ ! -d "/tmp/frontend-dist/.next" ]; then
-            echo "Error: .next directory not found in /tmp/frontend-dist"
+          # Check for .next directory
+          if [ ! -d "$ARTIFACT_DIR/.next" ]; then
+            echo "Error: .next directory not found in $ARTIFACT_DIR"
+            echo "All files in $ARTIFACT_DIR:"
+            find "$ARTIFACT_DIR" -type f | sort
             exit 1
           fi
           
-          echo "Artifact directory structure is valid"
+          # Verify BUILD_ID exists
+          if [ ! -f "$ARTIFACT_DIR/.next/BUILD_ID" ]; then
+            echo "Error: BUILD_ID file not found in $ARTIFACT_DIR/.next"
+            echo "Contents of $ARTIFACT_DIR/.next:"
+            ls -la "$ARTIFACT_DIR/.next"
+            exit 1
+          fi
+          
+          # Create a test file to verify write permissions
+          TEST_FILE="$ARTIFACT_DIR/upload-test-$(date +%s).txt"
+          echo "Creating test file: $TEST_FILE"
+          if ! echo "test" > "$TEST_FILE"; then
+            echo "Error: Failed to create test file in $ARTIFACT_DIR"
+            echo "Directory permissions:"
+            ls -ld "$ARTIFACT_DIR"
+            exit 1
+          fi
+          
+          echo "Artifact directory is ready for upload"
       
       - name: Upload frontend artifacts
         id: upload-artifacts
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
-          path: /tmp/frontend-dist
+          path: |
+            /tmp/frontend-dist/.next
+            /tmp/frontend-dist/upload-test-*.txt
           if-no-files-found: error
           retention-days: 1
+          compression-level: 0  # Disable compression to save time
 
   integration-tests:
     needs: [backend-build, frontend-build]
