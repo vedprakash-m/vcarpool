@@ -27,12 +27,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Use Node.js ${{ inputs.node-version }}
+      - name: Setup Node.js ${{ inputs.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
           cache: 'npm'
           cache-dependency-path: ${{ inputs.working-directory && format('{0}/package-lock.json', inputs.working-directory) || 'package-lock.json' }}
+          node-options: ${{ inputs.node-options }}
+
+      - name: Configure Node.js
+        if: inputs.node-options != ''
+        run: |
+          echo "NODE_OPTIONS=${{ inputs.node-options }}" >> $GITHUB_ENV
+        working-directory: ${{ inputs.working-directory || '.' }}
 
       - name: Cache node modules
         id: cache-node-modules
