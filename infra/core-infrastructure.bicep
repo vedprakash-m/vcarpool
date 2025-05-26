@@ -1,51 +1,92 @@
-// Core infrastructure template for CI/CD pipeline
-// This template focuses on the minimum required resources for a successful deployment
-// It deliberately avoids complex dependencies and uses simple resource configurations
+// Core infrastructure template for vCarpool
+// Environment-aware deployment with optimizations for different environments
 
 @description('Location for all resources')
 param location string = resourceGroup().location
 
 @description('App name prefix for all resources')
+@allowed([
+  'vcarpool'
+])
 param appName string = 'vcarpool'
 
 @description('Environment name (dev, test, prod)')
+@allowed([
+  'dev'
+  'test'
+  'prod'
+])
 param environmentName string = 'dev'
 
-// Tags for all resources
-var tags = {
+// Environment-specific configuration
+var environmentConfig = {
+  sku: environmentName == 'prod' ? 'P1v2' : 'B1'
+  tier: environmentName == 'prod' ? 'PremiumV2' : 'Basic'
+  cosmosThroughput: environmentName == 'prod' ? 1000 : 400
+  enableAutoScale: environmentName == 'prod'
+  retentionDays: environmentName == 'prod' ? 90 : 30
+  storageSku: 'Standard_LRS'
+  functionAppRuntime: 'node:18'
+  functionAppVersion: '~4'
+}
+
+// Base tags for all resources
+var baseTags = {
   application: appName
   environment: environmentName
-  deployment: 'ci-cd'
+  deployment: 'bicep'
+  managedBy: 'bicep'
+  costCenter: 'vcarpool'
 }
+
+// Generate a unique name for storage account (max 24 chars)
+var storageAccountName = toLower(take('${replace(appName, '-', '')}${environmentName}${uniqueString(resourceGroup().id)}', 24))
 
 // Storage Account - Required for Function App and blob storage
 resource storageAccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
-  name: '${replace(appName, '-', '')}sa${environmentName}'
+  name: storageAccountName
   location: location
-  tags: tags
+  tags: union(baseTags, {
+    storageType: environmentConfig.storageSku
+    autoShutdown: environmentName != 'prod' ? 'enabled' : 'disabled'
+  })
   sku: {
-    name: 'Standard_LRS'
+    name: environmentConfig.storageSku
   }
   kind: 'StorageV2'
   properties: {
     supportsHttpsTrafficOnly: true
     accessTier: 'Hot'
     minimumTlsVersion: 'TLS1_2'
+    allowBlobPublicAccess: false
+    networkAcls: {
+      defaultAction: 'Deny'
+      bypass: 'AzureServices'
+      ipRules: []
+      virtualNetworkRules: []
+    }
   }
 }
 
-// App Service Plan - Using B1 SKU which has wider availability
+// App Service Plan - Environment-specific SKU
 resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
   name: '${appName}-plan-${environmentName}'
   location: location
-  tags: tags
+  tags: union(baseTags, {
+    autoShutdown: environmentName != 'prod' ? 'enabled' : 'disabled'
+    environmentType: environmentName == 'prod' ? 'production' : 'non-production'
+  })
   kind: 'linux'
   sku: {
-    name: 'B1'
-    tier: 'Basic'
+    name: environmentConfig.sku
+    tier: environmentConfig.tier
+    capacity: environmentName == 'prod' ? 2 : 1
   }
   properties: {
     reserved: true
+    targetWorkerCount: environmentName == 'prod' ? 3 : 1
+    perSiteScaling: environmentName != 'prod' // Allow per-site scaling in non-prod
+    maximumElasticWorkerCount: environmentName == 'prod' ? 5 : 1
   }
 }
 
@@ -53,7 +94,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
 resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
   name: '${appName}-api-${environmentName}'
   location: location
-  tags: tags
+  tags: baseTags
   kind: 'functionapp,linux'
   properties: {
     serverFarmId: appServicePlan.id
@@ -106,7 +147,7 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
 resource staticWebApp 'Microsoft.Web/staticSites@2021-03-01' = {
   name: '${appName}-web-${environmentName}'
   location: location
-  tags: tags
+  tags: baseTags
   sku: {
     name: 'Standard'
     tier: 'Standard'
