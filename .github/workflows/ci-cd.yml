@@ -61,20 +61,28 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: package-lock.json # Root workspace lock file
+          cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: npm ci
-        working-directory: ./ # Install from root for workspace
+        working-directory: ./
       - name: Build shared library
         run: npm run build
+      - name: Verify dist directory exists
+        run: |
+          echo "Contents of shared directory:"
+          ls -la
+          echo "Contents of dist directory:"
+          ls -la dist/
       - name: Run tests
         run: npm test
-        working-directory: ./shared # Run from shared directory
+        working-directory: ./shared
       - name: Upload shared artifacts
         uses: actions/upload-artifact@v4
         with:
           name: shared-dist
-          path: ${{ env.SHARED_WORKING_DIR }}/dist
+          path: ${{ env.SHARED_WORKING_DIR }}/dist/**/*
+          retention-days: 1
+          if-no-files-found: error
 
   # Build and test backend
   backend-build:
@@ -92,14 +100,18 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json # Root workspace lock file
       - name: Download shared artifacts
-        uses: dawidd6/action-download-artifact@v3.0.0
+        uses: actions/download-artifact@v4
         with:
           name: shared-dist
-          path: ${{ env.SHARED_WORKING_DIR }}/dist
-          check_artifacts: true
-          retry: true
-          retry_wait: 5000 # 5 seconds between retries
-          retry_max_attempts: 5
+          path: ${{ env.SHARED_WORKING_DIR }}
+      - name: Verify shared artifacts
+        run: |
+          echo "Contents of shared directory:"
+          ls -la ${{ env.SHARED_WORKING_DIR }}
+          if [ ! -d "${{ env.SHARED_WORKING_DIR }}/dist" ]; then
+            echo "Error: Shared dist directory not found"
+            exit 1
+          fi
       # Backend's dependencies are installed via workspace root
       - name: Install workspace dependencies
         run: npm ci
