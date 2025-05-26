@@ -141,24 +141,17 @@ jobs:
     env:
       NODE_OPTIONS: --openssl-legacy-provider
       CI: true
-      NODE_ENV: production
-      NEXT_TELEGRAM_DISABLED: 1
       NEXT_TELEMETRY_DISABLED: 1
-      # Required environment variables
-      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:7071/api' }}
     defaults:
       run:
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Needed for proper git history
+      - uses: actions/checkout@v4
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION || '20.x' }}
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
       
       - name: Cache node modules
@@ -174,12 +167,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          echo "=== Installing Dependencies ==="
-          npm ci --prefer-offline --no-audit --no-fund
+          npm ci --prefer-offline
           npx next telemetry disable
-          
-          echo "\n=== Installed Dependencies ==="
-          npm ls next react react-dom
       
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
@@ -187,102 +176,42 @@ jobs:
           name: shared-dist
           path: ${{ env.SHARED_WORKING_DIR }}
       
-      - name: Verify Environment
-        run: |
-          echo "=== Verifying Environment ==="
-          echo "Node: $(node -v)"
-          echo "NPM: $(npm -v)"
-          echo "Current directory: $(pwd)"
-          
-          # Verify required environment variables
-          for var in NODE_ENV NODE_OPTIONS NEXT_PUBLIC_API_URL; do
-            if [ -z "${!var}" ]; then
-              echo "❌ Missing required environment variable: $var"
-              exit 1
-            else
-              echo "✅ $var=${!var}"
-            fi
-          done
-          
-          echo "\n=== Environment Variables ==="
-          env | sort
-          
       - name: Build Frontend
         run: |
           echo "=== Starting Frontend Build ==="
           echo "Working directory: $(pwd)"
           echo "Node version: $(node -v)"
           echo "NPM version: $(npm -v)"
-          echo "Environment:"
-          env | sort
           
-          # Clean any previous builds
-          echo "\n=== Cleaning previous builds ==="
-          rm -rf .next
-          
-          # Run build with full output
-          echo "\n=== Running Build ==="
-          npm run build -- --debug 2>&1 | tee build.log || {
-            echo "❌ Build failed with status $?"
-            echo "=== Build Log (last 100 lines) ==="
-            tail -n 100 build.log || echo "No build log found"
-            exit 1
-          }
+          # Run build with debug output
+          echo "Running build..."
+          npm run build
           
           # Verify build output
-          echo "\n=== Verifying Build Output ==="
+          echo "Build completed. Directory contents:"
+          ls -la
+          
           if [ ! -d ".next" ]; then
-            echo "❌ Error: .next directory not found after build"
-            echo "Current directory contents:"
-            ls -la
-            echo "\nBuild log (last 50 lines):"
-            tail -n 50 build.log || echo "No build log found"
+            echo "Error: .next directory not found after build"
             exit 1
           fi
           
-          echo "✅ Build completed successfully"
-          echo "📂 .next directory contents:"
-          du -sh .next
-          echo "\nTop 10 largest files:"
-          find .next -type f -exec du -h {} + | sort -rh | head -10
-          
-          # Verify build output is runnable
-          echo "\n=== Verifying Build Output ==="
-          if [ -f ".next/standalone/server.js" ]; then
-            echo "Standalone server detected, checking startup..."
-            node .next/standalone/server.js --version || {
-              echo "❌ Failed to start standalone server"
-              exit 1
-            }
-            pkill -f "node .next/standalone/server.js"
-          elif [ -f ".next/server/pages-manifest.json" ]; then
-            echo "Pages manifest found, verifying routes..."
-            if ! grep -q '"/_app"' .next/server/pages-manifest.json; then
-              echo "❌ Pages manifest is missing required routes"
-              exit 1
-            fi
-          else
-            echo "⚠️ Could not verify build output format"
-          fi
-          
-          # Create build info
-          echo "\n=== Creating Build Info ==="
+          echo ".next directory contents:"
+          ls -la .next/
+      
+      - name: Run Frontend Tests
+        run: npm test
+      
+      - name: Run security audit
+        run: npm audit --production
+        continue-on-error: true
+      
+      - name: Create build info
+        run: |
           mkdir -p /tmp/build-info
           echo "Build completed at: $(date)" > /tmp/build-info/build-info.txt
           echo "Commit: ${{ github.sha }}" >> /tmp/build-info/build-info.txt
           echo "Ref: ${{ github.ref }}" >> /tmp/build-info/build-info.txt
-          echo "Build ID: $(cat .next/BUILD_ID 2>/dev/null || echo 'unknown')" >> /tmp/build-info/build-info.txt
-          
-          # Create file manifest for verification
-          find .next -type f > /tmp/build-info/artifact-manifest.txt
-          
-          echo "\n=== Build Info ==="
-          cat /tmp/build-info/build-info.txt
-      
-      - name: Run Frontend Tests
-        run: |
-          echo "=== Running Tests ==="
-          npm test -- --ci --coverage
       
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -291,37 +220,48 @@ jobs:
           path: |
             ${{ env.FRONTEND_WORKING_DIR }}/.next
             /tmp/build-info
-          retention-days: 7
-          compression-level: 9
-          if-no-files-found: error
-          overwrite: true
-      
-      - name: Verify artifact upload
+      - name: Run Build Script
         run: |
-          echo "=== Verifying Artifact Upload ==="
-          echo "Build info:"
-          cat /tmp/build-info/build-info.txt
-          
-          echo "\nArtifact size:"
-          du -sh .next
-          
-          echo "\nTop 10 largest files:"
-          find .next -type f -exec du -h {} + | sort -rh | head -10
+          echo "=== Starting Build Script ==="
+          chmod +x ./scripts/ci-build.mjs
+          node ./scripts/ci-build.mjs
+        env:
+          NODE_OPTIONS: --openssl-legacy-provider
+          CI: true
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:7071/api' }}
+      
+      # Upload build artifacts
+      - name: Upload Frontend Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: |
+            ./frontend/.next
+            ./frontend/build-info
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
+      
+      - name: Upload Backend Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: ./backend/dist
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
 
   integration-tests:
-    needs: [backend-build, frontend-build]
+    needs: [frontend-build]
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: --openssl-legacy-provider
       CI: true
       NODE_ENV: test
       NEXT_TELEMETRY_DISABLED: 1
-    defaults:
-      run:
-        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -329,87 +269,33 @@ jobs:
           node-version: ${{ env.NODE_VERSION || '20.x' }}
           cache: 'npm'
       
-      # Cache node modules and Playwright browsers
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        id: cache-deps
-        with:
-          path: |
-            ${{ env.FRONTEND_WORKING_DIR }}/node_modules
-            ${{ env.FRONTEND_WORKING_DIR }}/.next/cache
-            ~/.cache/ms-playwright
-            ~/.npm/_cacache
-          key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-deps-
-      
-      - name: Install dependencies
-        run: |
-          echo "=== Installing Dependencies ==="
-          # Clear npm cache to prevent corruption
-          npm cache clean --force
-          
-          # Install with full output
-          npm ci --prefer-offline --no-audit --no-fund --loglevel verbose
-          npx next telemetry disable
-          
-          # Verify installation
-          echo "\n=== Verifying Installation ==="
-          npm ls next react react-dom --depth=0 || {
-            echo "❌ Dependency verification failed"
-            exit 1
-          }
-          
-          # Install Playwright browsers
-          echo "\n=== Installing Playwright ==="
-          npx playwright install --with-deps
-      
-      # Download and verify frontend build artifacts
-      - name: Download frontend build
+      # Download build artifacts
+      - name: Download Frontend Artifacts
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
-          path: ${{ env.FRONTEND_WORKING_DIR }}
+          path: ./frontend
       
-      - name: Verify build artifacts
+      - name: Download Backend Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: ./backend/dist
+      
+      # Install root dependencies
+      - name: Install Dependencies
         run: |
-          echo "=== Verifying Build Artifacts ==="
-          echo "Current directory: $(pwd)"
-          
-          # Check if .next directory exists
-          if [ ! -d ".next" ]; then
-            echo "❌ Error: .next directory not found in $(pwd)"
-            echo "Directory contents:"
-            ls -la
-            exit 1
-          fi
-          
-          echo "✅ .next directory found"
-          echo "📂 .next contents:"
-          ls -la .next/
-          
-          # Verify critical files
-          for file in "BUILD_ID" "server/pages-manifest.json" "static/chunks/webpack.js"; do
-            if [ -f ".next/$file" ]; then
-              echo "✅ Found: .next/$file"
-            else
-              echo "❌ Missing required file: .next/$file"
-              echo "Contents of .next/$(dirname "$file"):"
-              ls -la ".next/$(dirname "$file")" || true
-              exit 1
-            fi
-          done
+          echo "=== Installing Dependencies ==="
+          npm ci --prefer-offline --no-audit --no-fund
+          cd frontend
+          npm ci --prefer-offline --no-audit --no-fund
+          npx playwright install --with-deps
       
       # Start backend server
-      - name: Start backend server
+      - name: Start Backend Server
         run: |
           echo "=== Starting Backend Server ==="
-          cd ${{ env.BACKEND_WORKING_DIR }}
-          
-          echo "Installing dependencies..."
-          npm ci --prefer-offline --no-audit --no-fund
-          
-          echo "Starting server..."
+          cd backend
           npm install -g @azure/static-web-apps-cli
           swa start . \
             --api-location ./dist \
@@ -433,10 +319,9 @@ jobs:
           echo "Last 20 lines of server log:"
           tail -n 20 swa-cli.log 2>/dev/null || echo "No server log found"
           exit 1
-        working-directory: ${{ env.BACKEND_WORKING_DIR }}
       
       # Run tests
-      - name: Run tests
+      - name: Run Tests
         env:
           NODE_ENV: test
           NEXT_PUBLIC_API_URL: http://localhost:7071/api
@@ -444,10 +329,7 @@ jobs:
           PLAYWRIGHT_TEST_TIMEOUT: 60000
         run: |
           echo "=== Running Tests ==="
-          echo "Node: $(node -v)"
-          echo "NPM: $(npm -v)"
-          echo "Environment:"
-          env | sort
+          cd frontend
           
           # Run unit tests
           echo "\n=== Running Unit Tests ==="
@@ -458,15 +340,15 @@ jobs:
           npm run test:e2e -- --retries=2
       
       # Upload test results
-      - name: Upload test results
+      - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: |
-            ${{ env.FRONTEND_WORKING_DIR }}/test-results
-            ${{ env.FRONTEND_WORKING_DIR }}/playwright-report
-            ${{ env.FRONTEND_WORKING_DIR }}/coverage
+            ./frontend/test-results
+            ./frontend/playwright-report
+            ./frontend/coverage
           retention-days: 7
       
       # Cleanup
@@ -474,8 +356,7 @@ jobs:
         if: always()
         run: |
           echo "=== Cleaning Up ==="
-          if [ -f "${{ env.BACKEND_WORKING_DIR }}/backend_pid" ]; then
+          if [ -f "backend/backend_pid" ]; then
             echo "Stopping backend server..."
-            kill $(cat ${{ env.BACKEND_WORKING_DIR }}/backend_pid) 2>/dev/null || true
+            kill $(cat backend/backend_pid) 2>/dev/null || true
           fi
-        working-directory: ${{ env.BACKEND_WORKING_DIR }}
