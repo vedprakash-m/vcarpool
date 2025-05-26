@@ -51,44 +51,52 @@ jobs:
   # Build and test shared library
   shared-build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.SHARED_WORKING_DIR }}
+    outputs:
+      shared-artifact: ${{ steps.upload-artifact.outputs.artifact-name }}
     steps:
-      - uses: actions/checkout@v4.1.1
-      - name: Set up Node.js
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: package-lock.json
-      - name: Install dependencies
-        run: npm ci
-        working-directory: ./
-      - name: Build shared library
-        run: npm run build
-      - name: Verify dist directory exists
+          cache-dependency-path: package-lock.json # Root workspace lock file
+      
+      - name: Create shared directory structure
         run: |
-          echo "Contents of shared directory:"
-          ls -la
-          echo "Contents of dist directory:"
-          ls -la dist/
+          mkdir -p ${{ env.SHARED_WORKING_DIR }}/dist
+          echo "Shared directory structure created"
+          ls -la ${{ env.SHARED_WORKING_DIR }}
+          
+      - name: Install shared dependencies
+        run: npm ci
+        working-directory: ./shared
+        
+      - name: Build shared library
+        run: |
+          npm run build
+          echo "Build completed. Contents of shared/dist:"
+          ls -la ${{ env.SHARED_WORKING_DIR }}/dist
+        working-directory: ./shared
+        
       - name: Run tests
         run: npm test
         working-directory: ./shared
+        
       - name: Verify dist directory exists
         run: |
-          echo "Contents of shared/dist:"
+          echo "Verifying shared/dist contents:"
           ls -la ${{ env.SHARED_WORKING_DIR }}/dist
           if [ ! -d "${{ env.SHARED_WORKING_DIR }}/dist" ]; then
             echo "Error: Shared dist directory was not created during build"
             exit 1
           fi
+          
       - name: Upload shared artifacts
         uses: actions/upload-artifact@v4
         with:
           name: shared-dist
-          path: ${{ env.SHARED_WORKING_DIR }}/dist
+          path: ${{ env.SHARED_WORKING_DIR }}/dist/**/*
           retention-days: 1
           if-no-files-found: error
 
@@ -96,17 +104,15 @@ jobs:
   backend-build:
     needs: shared-build
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.BACKEND_WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4.1.1
-      - name: Set up Node.js
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: package-lock.json # Root workspace lock file
+          
       - name: Create shared directory
         run: mkdir -p ${{ env.SHARED_WORKING_DIR }}
         
@@ -124,61 +130,86 @@ jobs:
             echo "Error: Shared dist directory not found"
             exit 1
           fi
-      # Backend's dependencies are installed via workspace root
-      - name: Install workspace dependencies
+          
+      # Install root dependencies (workspace)
+      - name: Install root dependencies
         run: npm ci
-        working-directory: ./ # Install from root for workspace
+        working-directory: ./
+        
+      # Install backend dependencies
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+        
       - name: Lint backend code
         run: npm run lint
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+        
       - name: Build backend
         run: npm run build
-      - name: Verify environment health
-        run: |
-          cd ${{ github.workspace }}
-          bash scripts/health-check.sh
-          
-      - name: Run backend tests
-        run: |
-          # Ensure test directories exist
-          mkdir -p coverage
-          
-          # Run tests with CI reporter
-          npm run test:ci
         working-directory: ${{ env.BACKEND_WORKING_DIR }}
+        
+      - name: Verify environment health
+        run: npm run test:health
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+        
+      - name: Run backend tests
+        run: npm test
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+        
+      - name: Package backend for deployment
+        run: |
+          mkdir -p ${{ env.BACKEND_WORKING_DIR }}/dist
+          cp -r ${{ env.BACKEND_WORKING_DIR }}/dist/* ${{ env.BACKEND_WORKING_DIR }}/dist/
+          
       - name: Upload backend artifacts
         uses: actions/upload-artifact@v4
         with:
           name: backend-dist
-          path: ${{ env.BACKEND_WORKING_DIR }}/dist
+          path: ${{ env.BACKEND_WORKING_DIR }}/dist/**/*
+          retention-days: 1
+          if-no-files-found: error
 
   # Build and test frontend
   frontend-build:
     needs: shared-build
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4.1.1
-      - name: Set up Node.js
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: package-lock.json # Root workspace lock file
+          
+      - name: Create shared directory
+        run: mkdir -p ${{ env.SHARED_WORKING_DIR }}
+        
       - name: Download shared artifacts
-        uses: dawidd6/action-download-artifact@v3.0.0
+        uses: actions/download-artifact@v4
         with:
           name: shared-dist
-          path: ${{ env.SHARED_WORKING_DIR }}/dist
-          check_artifacts: true
-          retry: true
-          retry_wait: 5000 # 5 seconds between retries
-          retry_max_attempts: 5
-      # Frontend dependencies are installed via workspace root
-      - name: Install workspace dependencies
+          path: ${{ env.SHARED_WORKING_DIR }}
+          
+      - name: Verify shared artifacts
+        run: |
+          echo "Contents of shared directory:"
+          ls -la ${{ env.SHARED_WORKING_DIR }}
+          if [ ! -d "${{ env.SHARED_WORKING_DIR }}/dist" ]; then
+            echo "Error: Shared dist directory not found"
+            exit 1
+          fi
+          
+      # Install root dependencies (workspace)
+      - name: Install root dependencies
         run: npm ci
-        working-directory: ./ # Install from root for workspace
+        working-directory: ./
+        
+      # Install frontend dependencies
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
       - name: Lint frontend code
         run: npm run lint
       - name: Build frontend
