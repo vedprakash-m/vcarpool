@@ -401,32 +401,28 @@ jobs:
         working-directory: ${{ env.BACKEND_WORKING_DIR }}
         run: |
           # Create a clean directory for the deployment package
-          mkdir -p .deploy
-          
-          # Copy all necessary files to the deployment directory
-          cp -r dist .deploy/
-          cp -r node_modules .deploy/
-          cp host.json .deploy/
-          cp package*.json .deploy/
-          
-          # Create the function app directory structure
           mkdir -p .deploy/functionapp
           
-          # Move files to the function app directory
-          mv .deploy/dist/* .deploy/functionapp/
+          # Copy all necessary files to the deployment directory
+          cp -r dist/* .deploy/functionapp/
+          cp -r node_modules .deploy/functionapp/
+          cp host.json .deploy/functionapp/
+          cp package*.json .deploy/functionapp/
           
-          # Create the zip file at the root of the working directory
-          cd .deploy
-          zip -r ../functionapp.zip .
-          cd ..
+          # Create the zip file
+          cd .deploy/functionapp
+          zip -r ../../functionapp.zip .
+          cd ../..
           
           # List the contents of the zip file for debugging
           echo "Contents of the deployment package:"
           unzip -l functionapp.zip | head -20
           
           echo "Function app package created at $(pwd)/functionapp.zip"
+          ls -la functionapp.zip
           
       - name: Deploy to Azure Functions using Azure CLI
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
         run: |
           # Install Azure Functions Core Tools
           npm install -g azure-functions-core-tools@4 --unsafe-perm true
@@ -445,6 +441,9 @@ jobs:
           # Verify the zip file exists
           if [ ! -f "functionapp.zip" ]; then
             echo "❌ functionapp.zip not found in the current directory"
+            echo "Current directory: $(pwd)"
+            echo "Directory contents:"
+            ls -la
             exit 1
           fi
           
