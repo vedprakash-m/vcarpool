@@ -52,6 +52,110 @@ A comprehensive carpool management application built with Node.js TypeScript bac
 - **Performance Monitoring**: API performance tracking and optimization
 - **Infrastructure Monitoring**: Memory, CPU, and resource optimization
 
+## 🚀 Development Setup
+
+### Prerequisites
+
+- Node.js 18+
+- Azure Functions Core Tools
+- Azure CLI
+- Azure Cosmos DB Emulator (for local development)
+- Git
+- GitHub CLI (for managing secrets)
+
+### Local Development
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/vcarpool.git
+   cd vcarpool
+   ```
+
+2. **Install dependencies**
+   ```bash
+   # Install root dependencies
+   npm install
+   
+   # Install backend dependencies
+   cd backend
+   npm install
+   
+   # Install frontend dependencies
+   cd ../frontend
+   npm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   # Backend
+   cp backend/.env.example backend/.env.local
+   # Edit the .env.local file with your local settings
+   
+   # Frontend
+   cp frontend/.env.example frontend/.env.local
+   # Edit the .env.local file with your local settings
+   ```
+
+4. **Start local services**
+   ```bash
+   # Start Azure Functions (in one terminal)
+   cd backend
+   npm run dev
+   
+   # Start Next.js frontend (in another terminal)
+   cd ../frontend
+   npm run dev
+   ```
+
+### Managing Secrets
+
+#### For Local Development
+- Use `.env.local` files (already in `.gitignore`)
+- Never commit actual secrets to version control
+- The `.env.example` file shows all required environment variables
+
+#### For Production/Staging
+1. **GitHub Secrets**
+   - Set up required secrets in GitHub repository settings
+   - Required secrets are listed in `.github/workflows/ci-cd.yml`
+
+2. **Azure Key Vault**
+   - For production, use Azure Key Vault for secret management
+   - The application is configured to use Key Vault references
+
+#### Required Secrets
+
+| Secret Name | Description |
+|-------------|-------------|
+| `AZURE_CREDENTIALS` | Service principal credentials for Azure deployment |
+| `COSMOS_DB_KEY` | Primary key for Cosmos DB |
+| `JWT_SECRET` | Secret key for JWT token signing |
+| `JWT_REFRESH_SECRET` | Secret key for JWT refresh tokens |
+| `EMAIL_API_KEY` | API key for email service |
+| `AZURE_STATIC_WEB_APPS_TOKEN` | Deployment token for Azure Static Web Apps |
+
+### Security Best Practices
+
+1. **Never commit secrets**
+   - All secret values should come from environment variables
+   - Double-check `.gitignore` to ensure secret files are excluded
+
+2. **Use strong secrets**
+   - Generate strong, random values for all secrets
+   - Use a password manager to store secrets
+
+3. **Rotate secrets regularly**
+   - Implement a secret rotation policy
+   - Rotate all secrets when team members leave
+
+4. **Least privilege**
+   - Grant minimum required permissions for all service principals and API keys
+   - Regularly audit permissions
+
+5. **Monitor for leaks**
+   - Use GitHub's secret scanning
+   - Set up alerts for unexpected access patterns
+
 ## 🚀 Getting Started
 
 ### Prerequisites

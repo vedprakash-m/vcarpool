@@ -100,11 +100,21 @@ echo -e "${BLUE}🔐 Setting up GitHub secrets...${NC}"
 echo "   Setting AZURE_CREDENTIALS secret..."
 echo "$SP_OUTPUT" | gh secret set AZURE_CREDENTIALS
 
-# Generate placeholder for Azure Static Web Apps token
-echo "   Setting placeholder for AZURE_STATIC_WEB_APPS_TOKEN..."
-echo "placeholder-token-configure-after-static-web-app-creation" | gh secret set AZURE_STATIC_WEB_APPS_TOKEN
+# Required secrets for the application
+echo
+echo -e "${YELLOW}⚠️  Please set the following required secrets in GitHub:${NC}"
+echo "   • AZURE_STATIC_WEB_APPS_TOKEN - Deployment token for Azure Static Web Apps"
+echo "   • COSMOS_DB_KEY - Your Cosmos DB primary key"
+echo "   • JWT_SECRET - A strong secret for JWT token signing"
+echo "   • JWT_REFRESH_SECRET - A strong secret for JWT refresh tokens"
+echo "   • EMAIL_API_KEY - API key for email service"
+echo
 
-echo -e "${GREEN}✅ GitHub secrets configured${NC}"
+echo -e "${BLUE}💡 You can set these secrets using:${NC}"
+echo "   gh secret set SECRET_NAME --body 'your-secret-value'"
+echo
+
+echo -e "${GREEN}✅ GitHub secrets configuration complete${NC}"
 
 # Create parameters file for Bicep deployment
 echo -e "${BLUE}📝 Creating Bicep parameters file...${NC}"
@@ -139,10 +149,15 @@ if [ ! -f backend/local.settings.json ]; then
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "NODE_ENV": "development",
     "COSMOS_DB_ENDPOINT": "https://localhost:8081",
-    "COSMOS_DB_KEY": "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==",
+    "COSMOS_DB_KEY": "${COSMOS_DB_KEY:-C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==}",
     "COSMOS_DB_DATABASE_ID": "vcarpool-local",
-    "JWT_SECRET": "your-local-jwt-secret-key",
-    "JWT_REFRESH_SECRET": "your-local-jwt-refresh-secret-key"
+    "JWT_SECRET": "${JWT_SECRET:-generate-a-strong-secret-here}",
+    "JWT_REFRESH_SECRET": "${JWT_REFRESH_SECRET:-generate-a-strong-refresh-secret-here}",
+    "APPINSIGHTS_INSTRUMENTATIONKEY": "${APPINSIGHTS_INSTRUMENTATIONKEY:-}",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}",
+    "AZURE_CLIENT_ID": "${AZURE_CLIENT_ID:-}",
+    "AZURE_CLIENT_SECRET": "${AZURE_CLIENT_SECRET:-}",
+    "AZURE_TENANT_ID": "${AZURE_TENANT_ID:-}"
   },
   "Host": {
     "CORS": "*"
@@ -197,8 +212,12 @@ echo "   • Push changes to 'develop' branch to test deployment"
 echo "   • Use workflow_dispatch to manually trigger deployment"
 echo "   • Monitor deployment in GitHub Actions tab"
 echo
-echo -e "${BLUE}3. Local Development:${NC}"
+echo -e "${BLUE}3. Configure Local Development:${NC}"
 echo "   • Start Azure Cosmos DB Emulator (optional)"
+echo "   • Copy '.env.example' to '.env' and update with your local values"
+echo "   • For local development, you can use the Cosmos DB emulator key:"
+echo "     COSMOS_DB_KEY=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
+echo -e "   • ${YELLOW}Warning: Never commit .env files to version control${NC}"
 echo "   • Run backend: cd backend && npm run dev"
 echo "   • Run frontend: cd frontend && npm run dev"
 echo

@@ -27,6 +27,9 @@ env:
   # Cache version - increment to invalidate all caches
   CACHE_VERSION: 'v1'
   
+  # Artifact retention (in days)
+  ARTIFACT_RETENTION_DAYS: 7
+  
   # Telemetry and monitoring
   NEXT_TELEMETRY_DISABLED: '1'
   
@@ -40,13 +43,24 @@ env:
   SHARED_WORKING_DIR: './shared'
   INFRASTRUCTURE_WORKING_DIR: './infra'
   
-  # API configuration
-  NEXT_PUBLIC_API_URL: 'http://localhost:7071/api'
+  # API configuration - use environment variable if set, otherwise default
+  NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:7071/api' }}
   
   # Test configuration
   NODE_ENV: 'test'
   CI: 'true'
   PLAYWRIGHT_TEST_TIMEOUT: '60000'
+  
+  # Build configuration
+  BUILD_TIMESTAMP: ${{ github.run_id }}
+  BUILD_CACHE_KEY: ${{ github.sha }}-${{ github.run_id }}
+  
+  # Node.js options
+  NODE_OPTIONS: '--max_old_space_size=4096'
+  
+  # Logging
+  FORCE_COLOR: '1'
+  DEBUG: 'vcarpool:*'
 
 # Set default permissions for all jobs in the workflow
 permissions:
@@ -78,12 +92,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
+          cache-dependency-path: |
+            **/package-lock.json
+            **/package.json
       
       - name: Cache node modules
         id: cache-node-modules
@@ -92,17 +109,41 @@ jobs:
           path: |
             ~/.npm
             **/node_modules
+            !**/node_modules/**/node_modules
           key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-modules-
       
       - name: Install root dependencies
-        run: npm ci --prefer-offline --no-audit --no-fund
-      
-      - name: Install workspace dependencies
         run: |
-          # Install all workspace dependencies
-          npm install --workspace=shared --workspace=frontend --workspace=backend
+          # Install dependencies with audit enabled but not failing the build
+          echo "Installing dependencies..."
+          npm ci --prefer-offline --no-fund --audit=false
+          
+          # Check for vulnerabilities but don't fail the build
+          echo "\n=== Checking for security vulnerabilities ==="
+          npm audit --audit-level=critical || true
+          
+          # Verify all workspaces are linked
+          echo "\n=== Building shared workspace ==="
+          npm run build --workspace=shared --if-present
+          
+          # Check for missing or invalid dependencies
+          echo "\n=== Verifying dependencies ==="
+          npm ls --all --omit=dev --no-audit || true
+          
+          # Verify node_modules structure
+          echo "\n=== Verifying node_modules ==="
+          if [ ! -d "node_modules" ]; then
+            echo "::error::node_modules directory not found"
+            exit 1
+          fi
+          
+          # Check for critical missing dependencies
+          if [ ! -d "node_modules/typescript" ]; then
+            echo "::error::TypeScript not found in node_modules"
+            exit 1
+          fi
           
           # Verify all dependencies are installed
           echo "Verifying dependencies..."
@@ -149,47 +190,237 @@ jobs:
             echo "Installing missing zod dependency..."
             npm install zod --workspace=shared
           fi
+          
+          # Verify shared package.json exists and has main/module fields
+          if [ -f "shared/package.json" ]; then
+            echo "Shared package.json contents:"
+            cat shared/package.json
+          else
+            echo "::error::shared/package.json not found"
+            exit 1
+          fi
       
       - name: Type check shared package
         run: npx tsc --noEmit --project shared/tsconfig.json
       
       - name: Build shared packages
         run: |
-          echo "=== Building Shared Packages ==="
-          npm run build --workspace=shared
+          set -e  # Exit immediately on error
           
-          # Verify build output
-          if [ ! -d "shared/dist" ]; then
-            echo "::error::Shared build failed: dist directory not found"
-            echo "Contents of shared directory:"
-            ls -la shared/
-            echo "\nContents of shared/src:"
-            ls -la shared/src/ || true
+          echo "=== Building Shared Packages ==="
+          
+          # Show environment info
+          
+          # Verify TypeScript configuration
+          echo "\n=== Verifying TypeScript Configuration ==="
+          if [ ! -f "tsconfig.json" ]; then
+            echo "::error::tsconfig.json not found in shared directory"
             exit 1
+          fi
+          
+          # Run TypeScript type checking with more detailed output
+          echo "\n=== Type Checking ==="
+          if ! npx tsc --noEmit --pretty --listFiles --diagnostics; then
+            echo "::error::TypeScript type checking failed"
+            echo "TypeScript configuration:"
+            cat tsconfig.json
+            exit 1
+          fi
+          
+          # Run the build with timing information
+          echo "\n=== Building Shared Package ==="
+          START_TIME=$(date +%s)
+          if ! npm run build --workspace=shared; then
+            echo "::error::Shared build failed"
+            echo "Build output:"
+            cat build.log 2>/dev/null || echo "No build log found"
+            exit 1
+          fi
+          END_TIME=$(date +%s)
+          echo "Build completed in $((END_TIME - START_TIME)) seconds"
+          
+          # Verify build output structure
+          echo "\n=== Verifying Build Output ==="
+          if [ ! -d "dist" ]; then
+            echo "::error::Build failed: dist directory not found"
+            echo "Contents of shared directory:"
+            ls -la ./
+            exit 1
+          fi
+          
+          # Check for expected output files with versions
+          REQUIRED_FILES=(
+            "dist/index.js"
+            "dist/index.d.ts"
+            "dist/index.d.ts.map"
+            "dist/package.json"
+          )
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error::Missing required file: $file"
+              echo "Found files in dist:"
+              find dist -type f | sort
+              exit 1
+            fi
+            
+            # Verify file size is greater than 0
+            if [ ! -s "$file" ]; then
+              echo "::error::File is empty: $file"
+              exit 1
+            fi
+            
+            echo "✅ Verified: $file ($(wc -c < "$file") bytes)"
+          done
+          
+          # Verify package.json version matches expected format
+          if [ -f "package.json" ] && [ -f "dist/package.json" ]; then
+            PKG_VERSION=$(jq -r '.version' package.json)
+            DIST_PKG_VERSION=$(jq -r '.version' dist/package.json)
+            
+            if [ "$PKG_VERSION" != "$DIST_PKG_VERSION" ]; then
+              echo "::error::Version mismatch: package.json ($PKG_VERSION) != dist/package.json ($DIST_PKG_VERSION)"
+              exit 1
+            fi
+            
+            # Verify version format (semver)
+            if ! echo "$PKG_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$'; then
+              echo "::error::Invalid version format: $PKG_VERSION"
+              exit 1
+            fi
+            
+            echo "✅ Version verified: $PKG_VERSION"
           fi
           
           echo "✅ Shared build successful"
           echo "Build artifacts:"
           find shared/dist -type f | sort
-      
+          
+          # Verify module can be required
+          echo "\n=== Verifying Module Import ==="
+          cd shared
+          
+          # Check if main entry point exists and is valid
+          MAIN_ENTRY=$(node -p "require('./package.json').main")
+          echo "Main entry point: $MAIN_ENTRY"
+          
+          if [ ! -f "$MAIN_ENTRY" ]; then
+            echo "::error::Main entry point not found: $MAIN_ENTRY"
+            exit 1
+          fi
+          
+          # Try to import the module
+          if ! node -e "const m = require('.'); console.log('Module loaded successfully:', Object.keys(m))" 2> import_error.log; then
+            echo "::error::Failed to import shared module"
+            echo "Import error log:"
+            cat import_error.log
+            exit 1
+          fi
+          
+          # Verify TypeScript types
+          echo -e "\n=== Verifying TypeScript Types ==="
+          if ! npx tsc --noEmit --project tsconfig.json 2> type_errors.log; then
+            echo "::error::Type verification failed"
+            echo "Type errors:"
+            cat type_errors.log
+            exit 1
+          fi
+          
+          echo "✅ Shared module verification successful"
       - name: Upload shared artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: shared-artifacts
+          name: shared-artifacts-${{ env.BUILD_TIMESTAMP }}
           path: |
             shared/dist/**/*
             shared/package.json
-          retention-days: 1
+            shared/tsconfig.json
+            shared/tsconfig.tsbuildinfo
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
           compression-level: 9
+          if-no-files-found: error
+          overwrite: true
       
       - name: Verify shared module resolution
         run: |
-          echo "Verifying shared module can be imported..."
-          if ! node -e "require('./shared/dist')"; then
-            echo "::error::Failed to import shared module"
+          set -e  # Exit immediately on error
+          
+          echo "=== Verifying Shared Module Resolution ==="
+          
+          # Check if shared directory exists
+          if [ ! -d "shared" ]; then
+            echo "::error::Shared directory not found"
             exit 1
           fi
-          echo "✅ Shared module imports successfully"
+          
+          # Check package.json exists
+          if [ ! -f "shared/package.json" ]; then
+            echo "::error::shared/package.json not found"
+            exit 1
+          fi
+          
+          # Check dist directory exists
+          if [ ! -d "shared/dist" ]; then
+            echo "::error::shared/dist directory not found"
+            echo "Current directory: $(pwd)"
+            echo "Contents of shared/:"
+            ls -la shared/
+            exit 1
+          fi
+          
+          # Check for required files
+          REQUIRED_FILES=(
+            "shared/dist/index.js"
+            "shared/dist/index.d.ts"
+            "shared/package.json"
+          )
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error::Missing required file: $file"
+              exit 1
+            fi
+          done
+          
+          # Verify module can be required
+          echo "\n=== Testing Module Import ==="
+          cd shared
+          
+          # Get main entry point from package.json
+          MAIN_ENTRY=$(node -p "require('./package.json').main")
+          echo "Main entry point: $MAIN_ENTRY"
+          
+          # Verify main entry exists
+          if [ ! -f "$MAIN_ENTRY" ]; then
+            echo "::error::Main entry point not found: $MAIN_ENTRY"
+            echo "Current directory: $(pwd)"
+            echo "Contents of shared/dist:"
+            ls -la dist/
+            exit 1
+          fi
+          
+          # Test module import
+          echo -e "\n=== Testing Module Import ==="
+          if ! node -e "
+            try {
+              const m = require('.');
+              console.log('✅ Module loaded successfully');
+              console.log('Exported members:', Object.keys(m).filter(k => !k.startsWith('_')));
+              process.exit(0);
+            } catch (error) {
+              console.error('❌ Failed to load module:', error);
+              process.exit(1);
+            }
+          "; then
+            echo "::error::Failed to import shared module"
+            echo "Trying direct import from dist..."
+            if ! node -e "require('./dist')"; then
+              echo "::error::Direct import from dist also failed"
+              exit 1
+            fi
+          fi
+          
+          echo "✅ Shared module verification completed successfully"
         working-directory: ${{ env.SHARED_WORKING_DIR }}
       - name: Upload shared artifacts
         id: shared-artifacts
@@ -548,7 +779,7 @@ jobs:
           exit 1
       - name: Run tests
         env:
-          NODE_ENV: ${{ env.TEST_NODE_ENV }}
+          NODE_ENV: ${{ env.NODE_ENV }}
           NEXT_PUBLIC_API_URL: http://localhost:7071/api
           BACKEND_URL: http://localhost:7071
           PLAYWRIGHT_TEST_TIMEOUT: ${{ env.PLAYWRIGHT_TEST_TIMEOUT }}

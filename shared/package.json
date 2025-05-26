@@ -5,15 +5,24 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "prebuild": "mkdir -p dist",
-    "build": "tsc",
-    "postbuild": "echo 'Build completed successfully' && ls -la dist/",
-    "dev": "tsc --watch",
-    "test": "echo 'Shared package: No tests to run. Build validation passed.' && exit 0",
-    "clean": "rm -rf dist"
+    "prebuild": "rimraf dist && mkdir -p dist",
+    "build": "tsc --build",
+    "build:watch": "tsc --build --watch --preserveWatchOutput",
+    "clean": "rimraf dist",
+    "type-check": "tsc --noEmit",
+    "type-check:watch": "npm run type-check -- --watch",
+    "test": "echo 'Shared package: Running type checks...' && npm run type-check",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run test"
   },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/*.spec.*"
+  ],
   "devDependencies": {
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "rimraf": "^5.0.5"
   },
   "dependencies": {
     "zod": "^3.22.4"
