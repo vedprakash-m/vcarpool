@@ -67,11 +67,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: ${{ env.SHARED_WORKING_DIR }}/package-lock.json
+      - name: Cache node modules
+        id: cache-node-modules
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.SHARED_WORKING_DIR }}/node_modules
+          key: ${{ runner.os }}-node-modules-shared-${{ hashFiles('**/package-lock.json') }}
       - name: Install dependencies
         run: |
           cd ${{ env.SHARED_WORKING_DIR }}
-          npm ci
+          npm ci --prefer-offline
           npm cache clean --force
       - name: Build shared library
         run: |
@@ -97,11 +102,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: ${{ env.BACKEND_WORKING_DIR }}/package-lock.json
+      - name: Cache node modules
+        id: cache-node-modules
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.BACKEND_WORKING_DIR }}/node_modules
+          key: ${{ runner.os }}-node-modules-backend-${{ hashFiles('**/package-lock.json') }}
       - name: Install dependencies
         run: |
           cd ${{ env.BACKEND_WORKING_DIR }}
-          npm ci
+          npm ci --prefer-offline
           npm cache clean --force
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
@@ -135,6 +145,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+      - name: Cache node modules
+        id: cache-node-modules
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.FRONTEND_WORKING_DIR }}/node_modules
+          key: ${{ runner.os }}-node-modules-frontend-${{ hashFiles('**/package-lock.json') }}
       - name: Install dependencies
         run: |
           cd ${{ env.FRONTEND_WORKING_DIR }}
@@ -190,10 +206,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+      - name: Cache node modules
+        id: cache-node-modules
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.FRONTEND_WORKING_DIR }}/node_modules
+          key: ${{ runner.os }}-node-modules-integration-${{ hashFiles('**/package-lock.json') }}
       - name: Install dependencies
         run: |
           cd ${{ env.FRONTEND_WORKING_DIR }}
-          npm ci
+          npm ci --prefer-offline
           npm cache clean --force
       - name: Download backend artifacts
         uses: actions/download-artifact@v4
