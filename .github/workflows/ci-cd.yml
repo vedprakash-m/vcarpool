@@ -222,13 +222,50 @@ jobs:
           find /tmp/frontend-dist -type d -maxdepth 2 | sort
           echo "Total files: $(find /tmp/frontend-dist -type f | wc -l)"
       
+      - name: Prepare frontend artifacts
+        run: |
+          echo "=== Preparing frontend artifacts ==="
+          # Create a clean directory for the frontend artifacts
+          mkdir -p /tmp/frontend-dist/.next
+          
+          # Copy the build output
+          cp -r .next/* /tmp/frontend-dist/.next/
+          
+          # Copy static files and config
+          cp -r public /tmp/frontend-dist/public || true
+          cp package.json /tmp/frontend-dist/ || true
+          cp next.config.js /tmp/frontend-dist/ || true
+          
+          # Create or update staticwebapp.config.json
+          if [ ! -f "staticwebapp.config.json" ]; then
+            echo '{
+              "navigationFallback": {
+                "rewrite": "/index.html",
+                "exclude": ["/images/*", "/*.css", "/*.js", "/*.json"]
+              },
+              "routes": [
+                {
+                  "route": "/*",
+                  "serve": "/index.html",
+                  "statusCode": 200
+                }
+              ]
+            }' > /tmp/frontend-dist/staticwebapp.config.json
+          else
+            cp staticwebapp.config.json /tmp/frontend-dist/
+          fi
+          
+          echo "=== Frontend artifacts prepared ==="
+          find /tmp/frontend-dist -type f | sort
+          
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: frontend-dist
           path: /tmp/frontend-dist/
-          if-no-files-found: warn
+          retention-days: 1
+          if-no-files-found: error
 
   # Deploy infrastructure
   infrastructure-deploy:
@@ -360,18 +397,39 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
+      - name: Prepare Function App package
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+        run: |
+          # Create a zip package with the correct structure
+          mkdir -p .azurefunctions/artifacts
+          cp -r dist/* .azurefunctions/artifacts/
+          cp -r node_modules .azurefunctions/artifacts/
+          cp host.json .azurefunctions/artifacts/
+          cp package*.json .azurefunctions/artifacts/
+          
+          # Create the zip file
+          cd .azurefunctions/artifacts
+          zip -r ../functionapp.zip .
+          cd ..
+          echo "Function app package created at $(pwd)/functionapp.zip"
+          
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
         with:
           app-name: ${{ needs.infrastructure-deploy.outputs.functionAppName }}
-          package: ${{ env.BACKEND_WORKING_DIR }}
-      
+          package: ${{ env.BACKEND_WORKING_DIR }}/.azurefunctions/functionapp.zip
+          
       - name: Health Check
         run: |
+          echo "Waiting for function app to be available..."
           sleep 30
           endpoint="${{ needs.infrastructure-deploy.outputs.functionAppEndpoint }}"
           if [ ! -z "$endpoint" ]; then
-            curl -f "$endpoint/health" || echo "Health check endpoint not ready yet"
+            echo "Testing health endpoint: ${endpoint}/health"
+            curl -v -f "${endpoint}/health" || (echo "Health check failed" && exit 1)
+          else
+            echo "No function app endpoint available"
+            exit 1
           fi
 
   # Deploy frontend to Azure Static Web Apps
@@ -402,16 +460,58 @@ jobs:
             exit 1
           fi
       
-      # Prepare staticwebapp.config.json with API endpoint
-      - name: Configure staticwebapp.config.json
+      - name: Verify build output
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
         run: |
-          # Replace API_ENDPOINT placeholder with actual function app endpoint
+          echo "=== Verifying build output ==="
+          if [ ! -d ".next" ]; then
+            echo "❌ .next directory not found in $(pwd)"
+            echo "Current directory contents:"
+            ls -la
+            exit 1
+          fi
+          
+          echo "=== .next directory contents ==="
+          find .next -type d | sort
+          
+          # Ensure staticwebapp.config.json exists
+          if [ ! -f "staticwebapp.config.json" ]; then
+            echo "⚠️ staticwebapp.config.json not found, creating a default one"
+            echo '{
+              "navigationFallback": {
+                "rewrite": "/index.html",
+                "exclude": ["/images/*", "/*.css", "/*.js", "/*.json"]
+              },
+              "routes": [
+                {
+                  "route": "/*",
+                  "serve": "/index.html",
+                  "statusCode": 200
+                }
+              ],
+              "mimeTypes": {
+                ".json": "text/json"
+              }
+            }' > staticwebapp.config.json
+          fi
+          
+          # Update API endpoint in config if needed
           FUNCTION_APP_ENDPOINT="${{ needs.infrastructure-deploy.outputs.functionAppEndpoint }}"
           if [ -n "$FUNCTION_APP_ENDPOINT" ]; then
             # Extract hostname without https:// prefix
             API_HOSTNAME=$(echo $FUNCTION_APP_ENDPOINT | sed -e 's|^https://||' -e 's|/.*$||')
             echo "Setting API endpoint to $API_HOSTNAME"
-            sed -i "s/\${API_ENDPOINT}/$API_HOSTNAME/g" ${{ env.FRONTEND_WORKING_DIR }}/staticwebapp.config.json
+            
+            # Create or update environment file
+            echo "NEXT_PUBLIC_API_URL=https://$API_HOSTNAME" > .env.production
+            
+            # Update config file if it exists
+            if [ -f "staticwebapp.config.json" ]; then
+              sed -i "s|\${API_ENDPOINT}|$API_HOSTNAME|g" staticwebapp.config.json
+            fi
+            
+            echo "=== Updated staticwebapp.config.json ==="
+            cat staticwebapp.config.json
           fi
           
       - name: Deploy to Azure Static Web Apps
@@ -419,13 +519,15 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          action: "upload"
+          action: 'upload'
           app_location: ${{ env.FRONTEND_WORKING_DIR }}
-          app_artifact_location: ".next"
+          app_artifact_location: '.next/static'
+          output_location: '.next/static'
           skip_app_build: true
           skip_api_build: true
           config_file_location: ${{ env.FRONTEND_WORKING_DIR }}
-          production_branch: "main"
+          production_branch: 'main'
+          verbose: true
 
   # Post-deployment tests
   integration-tests:

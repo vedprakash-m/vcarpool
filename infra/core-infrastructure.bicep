@@ -18,6 +18,15 @@ param appName string = 'vcarpool'
 ])
 param environmentName string = 'dev'
 
+@description('VNet ID for private endpoint configuration')
+@allowed([
+  ''
+])
+param vnetId string = ''
+
+@description('Subnet name for private endpoint configuration')
+param subnetName string = ''
+
 // Environment-specific configuration
 var environmentConfig = {
   sku: environmentName == 'prod' ? 'P1v2' : 'B1'
@@ -60,11 +69,55 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
     networkAcls: {
-      defaultAction: 'Deny'
-      bypass: 'AzureServices'
+      defaultAction: 'Allow' // Temporarily allow all traffic during deployment
+      bypass: 'AzureServices' // Allow trusted Azure services to access the storage account
       ipRules: []
       virtualNetworkRules: []
     }
+    publicNetworkAccess: 'Enabled' // Enable public access for deployment
+    allowSharedKeyAccess: true // Required for Function App to access storage
+  }
+}
+
+// Private Endpoint for Storage Account (only if VNet ID is provided)
+resource storagePrivateEndpoint 'Microsoft.Network/privateEndpoints@2021-05-01' = if (!empty(vnetId) && environmentName == 'prod') {
+  name: '${storageAccount.name}-pe'
+  location: location
+  properties: {
+    subnet: {
+      id: '${vnetId}/subnets/${subnetName}'
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${storageAccount.name}-pls-conn'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: ['file', 'blob']
+        }
+      }
+    ]
+  }
+}
+
+// Private DNS Zone for Storage Account (only if VNet ID is provided)
+var storageSuffix = environment().suffixes.storage
+var privateDnsZoneName = 'privatelink.${replace(replace(storageSuffix, 'https://', ''), 'http://', '')}'
+
+resource privateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (!empty(vnetId) && environmentName == 'prod') {
+  name: privateDnsZoneName
+  location: 'global'
+}
+
+// Link Private DNS Zone to VNet (only if VNet ID is provided)
+resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (!empty(vnetId) && environmentName == 'prod') {
+  name: '${storageAccount.name}-vnet-link'
+  parent: privateDnsZone
+  location: 'global'
+  properties: {
+    virtualNetwork: {
+      id: vnetId
+    }
+    registrationEnabled: false
   }
 }
 
@@ -96,6 +149,9 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
   location: location
   tags: baseTags
   kind: 'functionapp,linux'
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
@@ -112,7 +168,7 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
         }
         {
           name: 'WEBSITE_CONTENTSHARE'
-          value: toLower('${appName}-api-${environmentName}')
+          value: toLower(replace('${appName}-api-${environmentName}', '.', '-'))
         }
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'
@@ -131,6 +187,10 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
           value: '1'
         }
         {
+          name: 'WEBSITE_LOAD_USER_PROFILE'
+          value: '1'
+        }
+        {
           name: 'JWT_SECRET' 
           value: 'temp-jwt-secret-${uniqueString(resourceGroup().id)}'
         }
@@ -140,6 +200,17 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
         }
       ]
     }
+  }
+}
+
+// Assign Storage Account Contributor role to Function App
+resource storageAccountRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(functionApp.id, 'storage-account-role')
+  scope: storageAccount
+  properties: {
+    principalId: functionApp.identity.principalId
+    roleDefinitionId: '/providers/Microsoft.Authorization/roleDefinitions/17d1049b-9a84-46fb-8f53-869881c3d3ab' // Storage Account Contributor
+    principalType: 'ServicePrincipal'
   }
 }
 
