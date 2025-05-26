@@ -1,0 +1,9 @@
+# Husky configuration
+HUSKY=1
+HUSKY_DEBUG=0
+HUSKY_VERBOSE=0
+
+# Skip Husky hooks when running in CI
+if [ -n "$CI" ]; then
+  HUSKY=0
+fi
