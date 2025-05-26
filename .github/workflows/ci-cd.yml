@@ -385,18 +385,19 @@ jobs:
           name: backend-dist
           path: ${{ env.BACKEND_WORKING_DIR }}/dist
           check_artifacts: true
+          retry: true
+          retry_wait: 5000 # 5 seconds between retries
+          retry_max_attempts: 5
+      
+      - name: Download shared artifacts
+        uses: dawidd6/action-download-artifact@v3.0.0
+        with:
           name: shared-dist
           path: ${{ env.SHARED_WORKING_DIR }}/dist
           check_artifacts: true
           retry: true
           retry_wait: 5000 # 5 seconds between retries
-          retry_max_attempts: 5          retry_max_attempts: 5
-      
-      - name: Download shared artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: shared-dist
-          path: ${{ env.SHARED_WORKING_DIR }}/dist
+          retry_max_attempts: 5
       
       - name: Install production dependencies
         working-directory: ${{ env.BACKEND_WORKING_DIR }}
@@ -441,11 +442,23 @@ jobs:
           npm install -g azure-functions-core-tools@4 --unsafe-perm true
           
           # Get the resource group name from the infrastructure deployment
-          RESOURCE_GROUP="vcarpool-rg-${{ needs.setup.outputs.environment }}"
+          RESOURCE_GROUP="${{ needs.setup.outputs.resource-group }}"
           FUNCTION_APP_NAME="${{ needs.infrastructure-deploy.outputs.functionAppName }}"
           
-          echo "Deploying to resource group: $RESOURCE_GROUP"
-          echo "Function app name: $FUNCTION_APP_NAME"
+          echo "=== Deployment Configuration ==="
+          echo "Using resource group: $RESOURCE_GROUP"
+          echo "Using function app name: $FUNCTION_APP_NAME"
+          
+          # Verify the resource group exists
+          echo "Checking if resource group exists..."
+          if ! az group show --name "$RESOURCE_GROUP" --output none 2>/dev/null; then
+            echo "❌ Error: Resource group '$RESOURCE_GROUP' does not exist"
+            echo "Available resource groups:"
+            az group list --query "[].name" -o tsv
+            exit 1
+          fi
+          
+          echo "✅ Resource group exists: $RESOURCE_GROUP"
           
           # List files in the current directory for debugging
           echo "Current directory contents:"
