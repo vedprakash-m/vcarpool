@@ -31,29 +31,48 @@
     },
     {
       "route": "/*",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["authenticated"],
+      "serve": "/index.html",
+      "statusCode": 200
     }
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/images/*", "/css/*", "/js/*", "/*.ico", "/*.json", "/*.svg"]
+    "exclude": [
+      "/images/*",
+      "/_next/static/*",
+      "/static/*",
+      "/*.css$",
+      "/*.js$",
+      "/*.json$",
+      "/*.svg$",
+      "/*.png$",
+      "/*.jpg$",
+      "/*.jpeg$",
+      "/*.gif$",
+      "/*.ico$",
+      "/*.txt$"
+    ]
   },
   "responseOverrides": {
+    "400": {
+      "rewrite": "/_next/static/error-pages/400.html"
+    },
     "401": {
       "redirect": "/login",
       "statusCode": 302
+    },
+    "403": {
+      "rewrite": "/_next/static/error-pages/403.html"
+    },
+    "404": {
+      "rewrite": "/_next/static/error-pages/404.html"
     }
   },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "X-XSS-Protection": "1; mode=block",
-    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*.azurewebsites.net;"
-  },
-  "mimeTypes": {
-    ".json": "application/json",
-    ".js": "text/javascript",
-    ".css": "text/css",
-    ".html": "text/html"
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.azurewebsites.net;"
   }
 }

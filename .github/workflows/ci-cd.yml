@@ -490,15 +490,32 @@ jobs:
         uses: actions/download-artifact@v4.1.4
         with:
           name: frontend-dist
-          path: ${{ env.FRONTEND_WORKING_DIR }}/.next
+          path: ${{ env.FRONTEND_WORKING_DIR }}
           
       - name: Verify downloaded artifacts
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
         run: |
           echo "Verifying downloaded Next.js artifacts"
-          if [ -d "${{ env.FRONTEND_WORKING_DIR }}/.next" ]; then
+          if [ -d ".next" ]; then
             echo "✅ .next directory exists"
-            find ${{ env.FRONTEND_WORKING_DIR }}/.next -type d -maxdepth 2 | sort
-            echo "Total files: $(find ${{ env.FRONTEND_WORKING_DIR }}/.next -type f | wc -l)"
+            find .next -type d -maxdepth 2 | sort
+            echo "Total files: $(find .next -type f | wc -l)"
+            
+          # Verify static files
+          if [ -d "public" ]; then
+            echo "✅ public directory exists"
+            ls -la public/
+          fi
+          
+          # Verify configuration files
+          if [ -f "next.config.js" ]; then
+            echo "✅ next.config.js exists"
+          fi
+          
+          if [ -f "staticwebapp.config.json" ]; then
+            echo "✅ staticwebapp.config.json exists"
+            cat staticwebapp.config.json
+          fi
           else
             echo "❌ .next directory not found"
             ls -la ${{ env.FRONTEND_WORKING_DIR }}
@@ -561,18 +578,27 @@ jobs:
           
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
+        id: swa-deploy
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: 'upload'
           app_location: ${{ env.FRONTEND_WORKING_DIR }}
-          app_artifact_location: '.next/static'
-          output_location: '.next/static'
+          output_location: 'out'
           skip_app_build: true
           skip_api_build: true
-          config_file_location: ${{ env.FRONTEND_WORKING_DIR }}
-          production_branch: 'main'
           verbose: true
+          deployment_environment_name: ${{ needs.setup.outputs.environment }}
+          env: |
+            API_ENDPOINT=${{ needs.infrastructure-deploy.outputs.functionAppEndpoint }}
+        continue-on-error: false
+        
+      - name: Verify deployment
+        if: steps.swa-deploy.outcome != 'success'
+        run: |
+          echo "Deployment failed. Checking logs..."
+          # Add any additional verification steps here
+          exit 1
 
   # Post-deployment tests
   integration-tests:
