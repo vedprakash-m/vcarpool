@@ -22,10 +22,10 @@ on:
 
 env:
   # Node.js version to use across all jobs
-  NODE_VERSION: '18.x'
+  NODE_VERSION: '20.x'
   
   # Cache version - increment to invalidate all caches
-  CACHE_VERSION: 'v1'
+  CACHE_VERSION: 'v2'
   
   # Artifact retention (in days)
   ARTIFACT_RETENTION_DAYS: 7

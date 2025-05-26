@@ -1,0 +1,137 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.mdx'
+      - '**/*.json'
+      - '**/*.yaml'
+      - '**/*.yml'
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.mdx'
+      - '**/*.json'
+      - '**/*.yaml'
+      - '**/*.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for git history in commit message checks
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+          run_install: false
+      
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+            ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+            node_modules
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+      
+      - name: Install dependencies
+        run: |
+          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "Using NPM_TOKEN from secrets"
+            echo "@vcarpool:registry=https://npm.pkg.github.com" > .npmrc
+            echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
+          fi
+          pnpm install --frozen-lockfile
+      
+      - name: Run TypeScript type check
+        run: pnpm type-check
+      
+      - name: Run ESLint
+        run: pnpm lint
+      
+      - name: Run Prettier
+        run: pnpm format:check
+      
+      - name: Check for console.log statements
+        run: |
+          if grep -r "console\.log" --include="*.{ts,tsx,js,jsx}" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.next .; then
+            echo "::error::Found console.log statements in the code. Please remove them before committing."
+            exit 1
+          fi
+      
+      - name: Verify commit messages (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Checking commit messages for PR #${{ github.event.pull_request.number }}"
+          # Get the base and head SHAs for the PR
+          BASE_SHA=${{ github.event.pull_request.base.sha }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          
+          # Get the list of commits in the PR
+          COMMITS=$(git log --pretty=format:"%s" $BASE_SHA..$HEAD_SHA)
+          
+          # Check each commit message
+          echo "Checking commit messages:"
+          echo "$COMMITS" | while read -r commit_msg; do
+            echo "- $commit_msg"
+            # Check if commit message follows conventional commit format
+            if ! echo "$commit_msg" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|ci|build|perf|revert)(\([a-z]+\))?: .+$'; then
+              echo "::error::Invalid commit message: $commit_msg"
+              echo "Please follow the Conventional Commits specification: https://www.conventionalcommits.org/"
+              exit 1
+            fi
+          done
+          
+          echo "✅ All commit messages are valid"
+      
+      - name: Check for merge conflicts
+        run: |
+          # Check for merge conflict markers
+          if grep -r -E '<<<<<<<|=======|>>>>>>>' --include="*.{ts,tsx,js,jsx,json,md,yml,yaml}" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.next .; then
+            echo "::error::Found merge conflict markers in the code. Please resolve them before committing."
+            exit 1
+          fi
+      
+      - name: Check for debugger statements
+        run: |
+          if grep -r "debugger" --include="*.{ts,tsx,js,jsx}" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.next .; then
+            echo "::error::Found 'debugger' statements in the code. Please remove them before committing."
+            exit 1
+          fi
+      
+      - name: Check for large files
+        run: |
+          # Check for files larger than 500KB
+          LARGE_FILES=$(find . -type f -size +500k -not -path "*/node_modules/*" -not -path "*/.next/*" -not -path "*/dist/*" -not -path "*/.git/*")
+          if [ -n "$LARGE_FILES" ]; then
+            echo "::error::Found large files that should not be committed:"
+            echo "$LARGE_FILES"
+            exit 1
+          fi
