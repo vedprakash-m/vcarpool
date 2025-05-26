@@ -74,9 +74,25 @@ jobs:
         
       - name: Build shared library
         run: |
+          echo "Current directory: $(pwd)"
+          echo "Contents of shared directory before build:"
+          ls -la ${{ env.SHARED_WORKING_DIR }}
+          
+          # Ensure the dist directory exists and is writable
+          mkdir -p ${{ env.SHARED_WORKING_DIR }}/dist
+          chmod -R 777 ${{ env.SHARED_WORKING_DIR }}/dist
+          
+          # Run the build
           npm run build
+          
           echo "Build completed. Contents of shared/dist:"
           ls -la ${{ env.SHARED_WORKING_DIR }}/dist
+          
+          # Verify the dist directory has content
+          if [ ! "$(ls -A ${{ env.SHARED_WORKING_DIR }}/dist)" ]; then
+            echo "Error: dist directory is empty after build"
+            exit 1
+          fi
         working-directory: ./shared
         
       - name: Run tests

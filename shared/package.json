@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "prebuild": "mkdir -p dist",
     "build": "tsc",
+    "postbuild": "echo 'Build completed successfully' && ls -la dist/",
     "dev": "tsc --watch",
     "test": "echo 'Shared package: No tests to run. Build validation passed.' && exit 0",
     "clean": "rm -rf dist"
