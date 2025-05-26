@@ -190,11 +190,21 @@ jobs:
         run: npm audit --production
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
         continue-on-error: true  # Don't fail the build on audit failures, but still report them
+      - name: Prepare frontend artifacts
+        run: |
+          # Create a clean directory for the frontend artifacts
+          mkdir -p /tmp/frontend-dist/.next
+          # Copy the built files to the clean directory
+          cp -r .next/* /tmp/frontend-dist/.next/
+          # List the contents for debugging
+          ls -la /tmp/frontend-dist/.next
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+        
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
-          path: ${{ env.FRONTEND_WORKING_DIR }}/.next
+          path: /tmp/frontend-dist
           retention-days: 1
 
   integration-tests:
@@ -202,22 +212,55 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      # Download artifacts first
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: ${{ env.BACKEND_WORKING_DIR }}
+      
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: /tmp/frontend-dist
+          
+      # Verify downloaded artifacts
+      - name: List downloaded artifacts
+        run: |
+          echo "Backend artifacts:"
+          ls -la ${{ env.BACKEND_WORKING_DIR }}
+          echo "Frontend artifacts:"
+          ls -la /tmp/frontend-dist
+          
+      # Setup Node.js and dependencies
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+          
       - name: Cache node modules
         id: cache-node-modules
         uses: actions/cache@v3
         with:
           path: ${{ env.FRONTEND_WORKING_DIR }}/node_modules
           key: ${{ runner.os }}-node-modules-integration-${{ hashFiles('**/package-lock.json') }}
+          
       - name: Install dependencies
         run: |
           cd ${{ env.FRONTEND_WORKING_DIR }}
           npm ci --prefer-offline
           npm cache clean --force
+          
+      # Copy the downloaded .next directory to the frontend working directory
+      - name: Restore frontend build
+        run: |
+          mkdir -p ${{ env.FRONTEND_WORKING_DIR }}/.next
+          cp -r /tmp/frontend-dist/.next/* ${{ env.FRONTEND_WORKING_DIR }}/.next/
+          
+      # Run the tests
       - name: Run Integration Tests
         run: |
           echo "Setting up OpenSSL legacy provider for tests..."
@@ -229,16 +272,6 @@ jobs:
           NODE_OPTIONS: --openssl-legacy-provider
           CI: true
           NODE_ENV: test
-      - name: Download backend artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-dist
-          path: ${{ env.BACKEND_WORKING_DIR }}
-      - name: Download frontend artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-dist
-          path: ${{ env.FRONTEND_WORKING_DIR }}
       - name: Start backend server
         run: |
           npm install -g @azure/static-web-apps-cli
