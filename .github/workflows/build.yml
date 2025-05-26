@@ -1,3 +1,16 @@
+# Build and Test Workflow
+#
+# This workflow handles the CI/CD pipeline for the vcarpool application.
+# It includes:
+# 1. Shared package building
+# 2. Backend building and testing
+# 3. Frontend building and testing
+# 4. Integration testing
+#
+# Required Secrets:
+# - NPM_TOKEN: For private package access (if needed)
+# - AZURE_CREDENTIALS: For Azure deployment (if enabled)
+
 name: Build and Test
 
 on:
@@ -8,15 +21,32 @@ on:
   workflow_dispatch:
 
 env:
+  # Node.js version to use across all jobs
   NODE_VERSION: '18.x'
+  
+  # Cache version - increment to invalidate all caches
   CACHE_VERSION: 'v1'
-  NEXT_TELEMETRY_DISABLED: 1
-  AZURE_FUNCTIONAPP_NAME: vcarpool-api
-  AZURE_STATICWEBAPP_NAME: vcarpool-web
-  BACKEND_WORKING_DIR: ./backend
-  FRONTEND_WORKING_DIR: ./frontend
-  SHARED_WORKING_DIR: ./shared
-  INFRASTRUCTURE_WORKING_DIR: ./infra
+  
+  # Telemetry and monitoring
+  NEXT_TELEMETRY_DISABLED: '1'
+  
+  # Azure deployment settings
+  AZURE_FUNCTIONAPP_NAME: 'vcarpool-api'
+  AZURE_STATICWEBAPP_NAME: 'vcarpool-web'
+  
+  # Directory paths
+  BACKEND_WORKING_DIR: './backend'
+  FRONTEND_WORKING_DIR: './frontend'
+  SHARED_WORKING_DIR: './shared'
+  INFRASTRUCTURE_WORKING_DIR: './infra'
+  
+  # API configuration
+  NEXT_PUBLIC_API_URL: 'http://localhost:7071/api'
+  
+  # Test configuration
+  NODE_ENV: 'test'
+  CI: 'true'
+  PLAYWRIGHT_TEST_TIMEOUT: '60000'
 
 # Set default permissions for all jobs in the workflow
 permissions:
@@ -54,37 +84,75 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
+      
+      - name: Cache node modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            **/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+      
       - name: Install root dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
-      - name: Install frontend dependencies
-        working-directory: ./frontend
-        run: npm ci --prefer-offline --no-audit --no-fund
-      - name: Install backend dependencies
-        working-directory: ./backend
-        run: npm ci --prefer-offline --no-audit --no-fund
-      - name: Install dependencies
+      
+      - name: Install workspace dependencies
         run: |
-          npm ci
+          # Install all workspace dependencies
+          npm install --workspace=shared --workspace=frontend --workspace=backend
+          
+          # Verify all dependencies are installed
+          echo "Verifying dependencies..."
+          npm ls --all --omit=dev
+          
+          # Clean npm cache
           npm cache clean --force
+          
+          # Verify shared workspace has all dependencies
+          if [ ! -d "node_modules/zod" ]; then
+            echo "Installing missing zod dependency..."
+            npm install zod --workspace=shared
+          fi
 
   shared-build:
     needs: install-dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
-      - name: Restore root dependencies
+      
+      - name: Restore dependencies from cache
         uses: actions/cache@v4
+        id: cache-node-modules
         with:
           path: |
             ~/.npm
-            node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}-${{ env.CACHE_VERSION }}
+            **/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+      
+      - name: Verify dependencies
+        run: |
+          echo "Verifying dependencies in shared workspace..."
+          npm ls --workspace=shared --all --omit=dev || true
+          
+          # Ensure required dependencies are installed
+          if [ ! -d "node_modules/zod" ]; then
+            echo "Installing missing zod dependency..."
+            npm install zod --workspace=shared
+          fi
+      
+      - name: Type check shared package
+        run: npx tsc --noEmit --project shared/tsconfig.json
+      
       - name: Build shared packages
         run: |
           echo "=== Building Shared Packages ==="
@@ -92,108 +160,168 @@ jobs:
           
           # Verify build output
           if [ ! -d "shared/dist" ]; then
-            echo " Shared build failed: dist directory not found"
+            echo "::error::Shared build failed: dist directory not found"
+            echo "Contents of shared directory:"
+            ls -la shared/
+            echo "\nContents of shared/src:"
+            ls -la shared/src/ || true
             exit 1
           fi
-          echo " Shared build successful"
-      - name: Build shared library
-        run: |
-          echo "Building shared library..."
-          npm run build
-          echo "Build completed. Contents of dist:"
-          ls -la dist/
-        working-directory: ${{ env.SHARED_WORKING_DIR }}
+          
+          echo "✅ Shared build successful"
+          echo "Build artifacts:"
+          find shared/dist -type f | sort
+      
       - name: Upload shared artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: shared-dist
-          path: ${{ env.SHARED_WORKING_DIR }}/dist
+          name: shared-artifacts
+          path: |
+            shared/dist/**/*
+            shared/package.json
           retention-days: 1
+          compression-level: 9
+      
+      - name: Verify shared module resolution
+        run: |
+          echo "Verifying shared module can be imported..."
+          if ! node -e "require('./shared/dist')"; then
+            echo "::error::Failed to import shared module"
+            exit 1
+          fi
+          echo "✅ Shared module imports successfully"
+        working-directory: ${{ env.SHARED_WORKING_DIR }}
+      - name: Upload shared artifacts
+        id: shared-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-artifacts
+          path: |
+            ${{ env.SHARED_WORKING_DIR }}/dist/**/*
+            ${{ env.SHARED_WORKING_DIR }}/package.json
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+          compression-level: 9
 
   backend-build:
     needs: [shared-build]
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      CI: true
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
+      
+      - name: Restore dependencies from cache
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: |
+            ~/.npm
+            **/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+      
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
         with:
-          name: shared-dist
+          name: shared-artifacts
           path: shared/dist
-      - name: Install dependencies
-        working-directory: ./backend
+      
+      - name: Install backend dependencies
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
         run: |
           echo "=== Installing Backend Dependencies ==="
           npm ci --prefer-offline --no-audit --no-fund
+      
       - name: Build backend
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
         run: |
           echo "=== Building Backend ==="
-          cd backend
           npm run build
           
           # Verify build output
           if [ ! -d "dist" ]; then
-            echo " Backend build failed: dist directory not found"
+            echo "::error::Backend build failed: dist directory not found"
+            ls -la
             exit 1
           fi
-          echo " Backend build successful"
-      - name: Upload backend artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-build
-          path: backend/dist
-          retention-days: 7
-          compression-level: 9
+          echo "✅ Backend build successful"
+      
       - name: Run backend tests
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
         run: npm test
-        working-directory: ${{ env.BACKEND_WORKING_DIR }}
+      
       - name: Run security audit
-        run: npm audit --production
         working-directory: ${{ env.BACKEND_WORKING_DIR }}
-        continue-on-error: true  # Don't fail the build on audit failures, but still report them
+        run: npm audit --production
+        continue-on-error: true  # Don't fail the build on audit failures
+      
       - name: Upload backend artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: backend-dist
-          path: ${{ env.BACKEND_WORKING_DIR }}/dist
+          name: backend-artifacts
+          path: |
+            ${{ env.BACKEND_WORKING_DIR }}/dist/**/*
+            ${{ env.BACKEND_WORKING_DIR }}/package.json
           retention-days: 1
+          compression-level: 9
 
   frontend-build:
-    needs: [backend-build]
+    needs: [backend-build, shared-build]
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: --openssl-legacy-provider
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:7071/api' }}
       CI: true
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: 1
     steps:
       - uses: actions/checkout@v4
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
-      - name: Download shared artifacts
-        uses: actions/download-artifact@v4
+      
+      - name: Restore dependencies
+        uses: actions/cache@v4
         with:
-          name: shared-dist
-          path: shared/dist
-      - name: Install dependencies
+          path: |
+            ~/.npm
+            **/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+      
+      - name: Install frontend dependencies
         working-directory: ./frontend
         run: |
           echo "=== Installing Frontend Dependencies ==="
           npm ci --prefer-offline --no-audit --no-fund
+          
+          # Check for required dependencies
+          if [ ! -d "../node_modules/zod" ]; then
+            echo "Installing missing zod dependency..."
+            npm install zod
+          fi
+      
+      - name: Verify frontend dependencies
+        working-directory: ./frontend
+        run: |
+          echo "=== Verifying Dependencies ==="
+          npm ls --all --omit=dev
+      
       - name: Build frontend
+        working-directory: ./frontend
         run: |
           echo "=== Building Frontend ==="
-          cd frontend
           
           # Clear any existing .next directory
           if [ -d ".next" ]; then
@@ -206,19 +334,34 @@ jobs:
           
           # Verify build output
           if [ ! -d ".next" ]; then
-            echo " Frontend build failed: .next directory not found"
+            echo "::error::Frontend build failed: .next directory not found"
+            ls -la
             exit 1
           fi
           
-          echo ".next directory contents:"
+          echo "✅ Frontend build successful"
+          echo "Build output contents:"
           ls -la .next/
       
       - name: Run Frontend Tests
+        working-directory: ./frontend
         run: npm test
       
       - name: Run security audit
+        working-directory: ./frontend
         run: npm audit --production
         continue-on-error: true
+      
+      - name: Upload frontend artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-artifacts
+          path: |
+            frontend/.next/**/*
+            frontend/public/**/*
+            frontend/next.config.js
+          retention-days: 1
+          compression-level: 9
       
       - name: Create build info
         run: |
@@ -266,14 +409,17 @@ jobs:
           if-no-files-found: error
           compression-level: 9
 
+  # Integration Tests
+  # Runs end-to-end tests against the built frontend and backend
+  # Dependencies:
+  #   - frontend-build: Ensures frontend is built and tested
+  #   - backend-build: Ensures backend is built and tested
   integration-tests:
-    needs: [frontend-build]
+    needs: [frontend-build, backend-build]
     runs-on: ubuntu-latest
     env:
-      NODE_OPTIONS: --openssl-legacy-provider
-      CI: true
-      NODE_ENV: test
-      NEXT_TELEMETRY_DISABLED: 1
+      NODE_OPTIONS: '--openssl-legacy-provider'
+      NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -284,65 +430,155 @@ jobs:
       - name: Download frontend artifacts
         uses: actions/download-artifact@v4
         with:
-          name: frontend-build
-          path: frontend/.next
+          name: frontend-artifacts
+          path: frontend
+          
       - name: Download backend artifacts
         uses: actions/download-artifact@v4
         with:
-          name: backend-build
-          path: backend/dist
+          name: backend-artifacts
+          path: backend
+          
+      - name: Download shared artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: shared-artifacts
+          path: shared
       - name: Install test dependencies
         run: |
           echo "=== Installing Test Dependencies ==="
+          
+          # Install root dependencies
+          echo "Installing root dependencies..."
           npm ci --prefer-offline --no-audit --no-fund
+          
+          # Install frontend test dependencies
+          echo "\n=== Installing frontend dependencies ==="
           cd frontend
           npm ci --prefer-offline --no-audit --no-fund
-          npx playwright install --with-deps
+          
+          # Install Playwright browsers with retry logic
+          echo "\n=== Installing Playwright browsers ==="
+          MAX_RETRIES=3
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES"
+            if npx playwright install --with-deps chromium; then
+              echo "Playwright installed successfully"
+              break
+            elif [ $i -eq $MAX_RETRIES ]; then
+              echo "::error::Failed to install Playwright after $MAX_RETRIES attempts"
+              exit 1
+            else
+              echo "Retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          # Verify installations
+          echo "\n=== Verifying Installations ==="
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "Playwright: $(npx playwright --version)"
       - name: Start backend server
         id: backend
+        timeout-minutes: 5
         run: |
           echo "=== Starting Backend Server ==="
           cd backend
-          npm install -g @azure/static-web-apps-cli
+          
+          # Install SWA CLI if not present
+          if ! command -v swa &> /dev/null; then
+            echo "Installing @azure/static-web-apps-cli..."
+            npm install -g @azure/static-web-apps-cli
+          fi
+          
+          # Start the server in the background
+          echo "Starting backend server..."
           swa start . \
             --api-location ./dist \
             --port 7071 \
             --no-open \
-            & echo $! > backend_pid
+            > swa.log 2>&1 & 
+          echo $! > backend_pid
           
-          # Wait for server to be ready
+          # Wait for server to be ready with timeout
           echo "Waiting for backend to be ready..."
-          for i in {1..10}; do
-            if curl -s http://localhost:7071/api/health >/dev/null; then
+          MAX_RETRIES=10
+          RETRY_DELAY=3
+          
+          for ((i=1; i<=MAX_RETRIES; i++)); do
+            if curl -s --max-time 5 http://localhost:7071/api/health >/dev/null; then
               echo "✅ Backend server is running"
               echo "BACKEND_URL=http://localhost:7071" >> $GITHUB_ENV
+              echo "NEXT_PUBLIC_API_URL=http://localhost:7071/api" >> $GITHUB_ENV
               exit 0
             fi
-            echo "Waiting for backend... (attempt $i/10)"
-            sleep 3
+            
+            # Show progress
+            if [ $i -lt $MAX_RETRIES ]; then
+              echo "Waiting for backend... (attempt $i/$MAX_RETRIES)"
+              sleep $RETRY_DELAY
+            fi
           done
           
+          # If we get here, the server didn't start
           echo "❌ Backend server failed to start"
-          echo "Last 20 lines of server log:"
-          tail -n 20 swa-cli.log 2>/dev/null || echo "No server log found"
+          echo "=== Last 50 lines of server log ==="
+          if [ -f "swa.log" ]; then
+            echo "File size: $(wc -l < swa.log) lines"
+            tail -n 50 swa.log
+            
+            # Check for common errors
+            if grep -q "EADDRINUSE" swa.log; then
+              echo "\n⚠️  Port 7071 is already in use"
+            fi
+            if grep -q "Error" swa.log; then
+              echo "\n❌ Errors found in server log:"
+              grep -i "error\|exception\|failed" swa.log | head -n 10
+            fi
+          else
+            echo "No server log found"
+          fi
+          echo "=================================="
+          
+          # Try to get process list on failure
+          echo "\n=== Process List ==="
+          ps aux | grep -i "node\|swa"
+          
           exit 1
       - name: Run tests
         env:
-          NODE_ENV: test
+          NODE_ENV: ${{ env.TEST_NODE_ENV }}
           NEXT_PUBLIC_API_URL: http://localhost:7071/api
           BACKEND_URL: http://localhost:7071
-          PLAYWRIGHT_TEST_TIMEOUT: 60000
+          PLAYWRIGHT_TEST_TIMEOUT: ${{ env.PLAYWRIGHT_TEST_TIMEOUT }}
         run: |
+          set -e
           echo "=== Running Tests ==="
           cd frontend
           
-          # Run unit tests
+          # Run unit tests with coverage
           echo "\n=== Running Unit Tests ==="
-          npm test -- --ci --coverage
+          if ! npm test -- --ci --coverage; then
+            echo "::error::Unit tests failed"
+            exit 1
+          fi
           
-          # Run E2E tests
+          # Run E2E tests with retries
           echo "\n=== Running E2E Tests ==="
-          npm run test:e2e -- --retries=2
+          MAX_RETRIES=2
+          for i in $(seq 1 $((MAX_RETRIES + 1))); do
+            echo "\nE2E Test Attempt $i/$(($MAX_RETRIES + 1))"
+            if npm run test:e2e -- --quiet; then
+              echo "E2E tests passed on attempt $i"
+              break
+            elif [ $i -gt $MAX_RETRIES ]; then
+              echo "::error::E2E tests failed after $MAX_RETRIES retries"
+              exit 1
+            else
+              echo "Retrying E2E tests..."
+            fi
+          done
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
