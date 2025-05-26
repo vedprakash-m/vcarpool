@@ -194,40 +194,73 @@ jobs:
         id: prepare-artifacts
         run: |
           # Create a clean directory for the frontend artifacts
-          mkdir -p /tmp/frontend-dist/.next
+          ARTIFACT_DIR="/tmp/frontend-dist"
+          echo "Preparing artifacts in $ARTIFACT_DIR"
           
-          # Copy the built files to the clean directory
-          echo "Copying .next directory contents..."
-          cp -r .next/* /tmp/frontend-dist/.next/
+          # Ensure the directory exists and is empty
+          rm -rf "$ARTIFACT_DIR"
+          mkdir -p "$ARTIFACT_DIR"
           
-          # Verify the files were copied
-          echo "Verifying copied files..."
-          if [ ! -d "/tmp/frontend-dist/.next" ]; then
-            echo "Error: .next directory was not created"
+          # Copy the .next directory
+          echo "Copying .next directory..."
+          if [ ! -d ".next" ]; then
+            echo "Error: .next directory not found in working directory"
+            ls -la .
+            exit 1
+          fi
+          
+          # Copy the entire .next directory
+          cp -r .next "$ARTIFACT_DIR/"
+          
+          # Verify the copy was successful
+          if [ $? -ne 0 ]; then
+            echo "Error: Failed to copy .next directory"
             exit 1
           fi
           
           # List the contents for debugging
-          echo "Contents of /tmp/frontend-dist/.next:"
-          ls -la /tmp/frontend-dist/.next
+          echo "Contents of $ARTIFACT_DIR:"
+          ls -la "$ARTIFACT_DIR"
+          
+          echo "Contents of $ARTIFACT_DIR/.next:"
+          ls -la "$ARTIFACT_DIR/.next"
           
           # Verify we have the required files
-          if [ ! -f "/tmp/frontend-dist/.next/BUILD_ID" ]; then
+          if [ ! -f "$ARTIFACT_DIR/.next/BUILD_ID" ]; then
             echo "Error: BUILD_ID file is missing from .next directory"
+            find "$ARTIFACT_DIR" -type f | sort
             exit 1
           fi
           
-          echo "Artifacts prepared successfully"
+          echo "Artifacts prepared successfully in $ARTIFACT_DIR"
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+      
+      - name: Verify artifact directory before upload
+        id: verify-artifacts
+        run: |
+          echo "Verifying artifact directory structure..."
+          if [ ! -d "/tmp/frontend-dist" ]; then
+            echo "Error: /tmp/frontend-dist directory does not exist"
+            ls -la /tmp/
+            exit 1
+          fi
+          
+          echo "Contents of /tmp/frontend-dist:"
+          ls -la /tmp/frontend-dist
+          
+          if [ ! -d "/tmp/frontend-dist/.next" ]; then
+            echo "Error: .next directory not found in /tmp/frontend-dist"
+            exit 1
+          fi
+          
+          echo "Artifact directory structure is valid"
       
       - name: Upload frontend artifacts
         id: upload-artifacts
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
-          path: |
-            /tmp/frontend-dist/.next
-            /tmp/frontend-dist/.next/static
+          path: /tmp/frontend-dist
           if-no-files-found: error
           retention-days: 1
 
@@ -236,6 +269,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      # Create directories for artifacts
+      - name: Create artifact directories
+        run: |
+          mkdir -p /tmp/artifacts/frontend-dist
+          mkdir -p "${{ env.BACKEND_WORKING_DIR }}"
       
       # Download artifacts first
       - name: Download backend artifacts
@@ -255,9 +294,14 @@ jobs:
       # Verify downloaded artifacts
       - name: Verify downloaded artifacts
         run: |
-          echo "=== Backend artifacts ==="
+          echo "=== Current Directory ==="
+          pwd
+          ls -la
+          
+          echo "\n=== Backend artifacts ==="
           if [ ! -d "${{ env.BACKEND_WORKING_DIR }}/dist" ]; then
             echo "Error: Backend dist directory not found"
+            echo "Contents of ${{ env.BACKEND_WORKING_DIR }}:"
             ls -la "${{ env.BACKEND_WORKING_DIR }}"
             exit 1
           fi
@@ -265,16 +309,29 @@ jobs:
           echo "\n=== Frontend artifacts ==="
           if [ ! -d "/tmp/artifacts/frontend-dist" ]; then
             echo "Error: Frontend artifacts directory not found"
+            echo "Contents of /tmp/artifacts:"
             ls -la /tmp/artifacts
             exit 1
           fi
           
-          echo "\nFrontend artifact contents:"
+          echo "\nFrontend artifact directory structure:"
+          find /tmp/artifacts/frontend-dist -type d | sort
+          
+          echo "\nFrontend artifact files:"
           find /tmp/artifacts/frontend-dist -type f | sort
           
           echo "\nVerifying required files..."
+          if [ ! -d "/tmp/artifacts/frontend-dist/.next" ]; then
+            echo "Error: .next directory is missing from frontend artifacts"
+            echo "Contents of frontend-dist:"
+            ls -la /tmp/artifacts/frontend-dist
+            exit 1
+          fi
+          
           if [ ! -f "/tmp/artifacts/frontend-dist/.next/BUILD_ID" ]; then
             echo "Error: BUILD_ID file is missing from frontend artifacts"
+            echo "Contents of .next directory:"
+            ls -la /tmp/artifacts/frontend-dist/.next
             exit 1
           fi
           
@@ -303,36 +360,61 @@ jobs:
       # Restore the frontend build from downloaded artifacts
       - name: Restore frontend build
         run: |
-          echo "Restoring frontend build..."
+          echo "=== Restoring frontend build ==="
           
-          # Ensure the target directory exists
-          mkdir -p ${{ env.FRONTEND_WORKING_DIR }}/.next
+          # Source and target directories
+          SRC_DIR="/tmp/artifacts/frontend-dist"
+          TARGET_DIR="${{ env.FRONTEND_WORKING_DIR }}/.next"
           
-          # Copy the artifacts to the correct location
-          echo "Copying artifacts from /tmp/artifacts/frontend-dist to ${{ env.FRONTEND_WORKING_DIR }}"
+          echo "Source directory: $SRC_DIR"
+          echo "Target directory: $TARGET_DIR"
           
-          # Copy all files from the artifact to the .next directory
-          if [ -d "/tmp/artifacts/frontend-dist" ]; then
-            cp -r /tmp/artifacts/frontend-dist/.next/* ${{ env.FRONTEND_WORKING_DIR }}/.next/
-            
-            # Verify the copy was successful
-            if [ $? -ne 0 ]; then
-              echo "Error: Failed to copy frontend artifacts"
-              exit 1
-            fi
-            
-            echo "Verifying restored files..."
-            if [ ! -f "${{ env.FRONTEND_WORKING_DIR }}/.next/BUILD_ID" ]; then
-              echo "Error: BUILD_ID file is missing after restore"
-              exit 1
-            fi
-            
-            echo "Frontend build restored successfully"
-            echo "Contents of ${{ env.FRONTEND_WORKING_DIR }}/.next:"
-            ls -la ${{ env.FRONTEND_WORKING_DIR }}/.next
-          else
-            echo "Error: Frontend artifacts not found in /tmp/artifacts/frontend-dist"
+          # Verify source directory exists
+          if [ ! -d "$SRC_DIR" ]; then
+            echo "Error: Source directory $SRC_DIR does not exist"
             exit 1
+          fi
+          
+          # Ensure target directory exists
+          echo "Creating target directory: $TARGET_DIR"
+          mkdir -p "$TARGET_DIR"
+          
+          # Check if .next exists in source
+          if [ ! -d "$SRC_DIR/.next" ]; then
+            echo "Error: .next directory not found in $SRC_DIR"
+            echo "Contents of $SRC_DIR:"
+            ls -la "$SRC_DIR"
+            exit 1
+          fi
+          
+          # Copy the .next directory
+          echo "Copying .next directory from $SRC_DIR/.next to $TARGET_DIR"
+          cp -r "$SRC_DIR/.next/"* "$TARGET_DIR/"
+          
+          # Verify the copy was successful
+          if [ $? -ne 0 ]; then
+            echo "Error: Failed to copy frontend artifacts"
+            exit 1
+          fi
+          
+          # Verify the BUILD_ID file exists
+          echo "Verifying restored files..."
+          if [ ! -f "$TARGET_DIR/BUILD_ID" ]; then
+            echo "Error: BUILD_ID file is missing after restore"
+            echo "Contents of $TARGET_DIR:"
+            ls -la "$TARGET_DIR"
+            exit 1
+          fi
+          
+          echo "Frontend build restored successfully"
+          echo "Contents of $TARGET_DIR:"
+          ls -la "$TARGET_DIR"
+          
+          echo "Verifying next build..."
+          if [ -f "${{ env.FRONTEND_WORKING_DIR }}/node_modules/.bin/next" ]; then
+            "${{ env.FRONTEND_WORKING_DIR }}/node_modules/.bin/next" info
+          else
+            echo "Next.js binary not found, skipping verification"
           fi
           
       # Run the tests
