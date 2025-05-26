@@ -163,7 +163,8 @@ jobs:
       - name: Start backend server
         run: |
           npm install -g @azure/static-web-apps-cli
-          swa start ${{ env.BACKEND_WORKING_DIR }} --api-location ${{ env.BACKEND_WORKING_DIR }}/dist --port 7071 &
+          swa start ${{ env.BACKEND_WORKING_DIR }} --api-location ${{ env.BACKEND_WORKING_DIR }}/dist --port 7071 & echo $! > backend_pid
+          trap "kill $(cat backend_pid)" EXIT
           echo "BACKEND_URL=http://localhost:7071" >> $GITHUB_ENV
         working-directory: ${{ env.BACKEND_WORKING_DIR }}
       - name: Run integration tests
