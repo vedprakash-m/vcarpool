@@ -55,7 +55,7 @@ jobs:
       run:
         working-directory: ${{ env.SHARED_WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.1
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -84,7 +84,7 @@ jobs:
       run:
         working-directory: ${{ env.BACKEND_WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.1
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -131,7 +131,7 @@ jobs:
       run:
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.1
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -279,7 +279,7 @@ jobs:
       functionAppEndpoint: ${{ steps.deploy.outputs.functionAppEndpoint }}
       staticWebAppEndpoint: ${{ steps.deploy.outputs.staticWebAppEndpoint }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.1
       
       - name: Azure CLI Login
         uses: azure/login@v1
@@ -366,7 +366,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.setup.outputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.1
       
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -439,10 +439,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.setup.outputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.1
       
       - name: Download frontend artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.4
         with:
           name: frontend-dist
           path: ${{ env.FRONTEND_WORKING_DIR }}/.next
@@ -536,7 +536,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.setup.outputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.1
       
       - name: Set up Node.js
         uses: actions/setup-node@v4
