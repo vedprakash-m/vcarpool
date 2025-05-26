@@ -3,12 +3,16 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: process.env.ANALYZE === 'true',
 })
 
+// Only enable static exports in production
+const isProd = process.env.NODE_ENV === 'production';
 const nextConfig = {
-  env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:7071/api',
-  },
-  // Enable image optimization
+  // Disable static exports for now to support dynamic routes
+  output: undefined,
+  // Set the base path for static exports
+  basePath: isProd ? '' : '',
+  // Disable image optimization for static exports
   images: {
+    unoptimized: true,
     domains: [],
     remotePatterns: [
       {
@@ -16,6 +20,10 @@ const nextConfig = {
         hostname: '**',
       },
     ],
+  },
+  // Environment variables
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:7071/api',
   },
   // Optimize module imports
   modularizeImports: {
