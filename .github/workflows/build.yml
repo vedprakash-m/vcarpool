@@ -191,20 +191,44 @@ jobs:
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
         continue-on-error: true  # Don't fail the build on audit failures, but still report them
       - name: Prepare frontend artifacts
+        id: prepare-artifacts
         run: |
           # Create a clean directory for the frontend artifacts
           mkdir -p /tmp/frontend-dist/.next
+          
           # Copy the built files to the clean directory
+          echo "Copying .next directory contents..."
           cp -r .next/* /tmp/frontend-dist/.next/
+          
+          # Verify the files were copied
+          echo "Verifying copied files..."
+          if [ ! -d "/tmp/frontend-dist/.next" ]; then
+            echo "Error: .next directory was not created"
+            exit 1
+          fi
+          
           # List the contents for debugging
+          echo "Contents of /tmp/frontend-dist/.next:"
           ls -la /tmp/frontend-dist/.next
+          
+          # Verify we have the required files
+          if [ ! -f "/tmp/frontend-dist/.next/BUILD_ID" ]; then
+            echo "Error: BUILD_ID file is missing from .next directory"
+            exit 1
+          fi
+          
+          echo "Artifacts prepared successfully"
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
-        
+      
       - name: Upload frontend artifacts
+        id: upload-artifacts
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
-          path: /tmp/frontend-dist
+          path: |
+            /tmp/frontend-dist/.next
+            /tmp/frontend-dist/.next/static
+          if-no-files-found: error
           retention-days: 1
 
   integration-tests:
@@ -215,24 +239,46 @@ jobs:
       
       # Download artifacts first
       - name: Download backend artifacts
+        id: download-backend
         uses: actions/download-artifact@v4
         with:
           name: backend-dist
           path: ${{ env.BACKEND_WORKING_DIR }}
       
       - name: Download frontend artifacts
+        id: download-frontend
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist
-          path: /tmp/frontend-dist
+          path: /tmp/artifacts/frontend-dist
           
       # Verify downloaded artifacts
-      - name: List downloaded artifacts
+      - name: Verify downloaded artifacts
         run: |
-          echo "Backend artifacts:"
-          ls -la ${{ env.BACKEND_WORKING_DIR }}
-          echo "Frontend artifacts:"
-          ls -la /tmp/frontend-dist
+          echo "=== Backend artifacts ==="
+          if [ ! -d "${{ env.BACKEND_WORKING_DIR }}/dist" ]; then
+            echo "Error: Backend dist directory not found"
+            ls -la "${{ env.BACKEND_WORKING_DIR }}"
+            exit 1
+          fi
+          
+          echo "\n=== Frontend artifacts ==="
+          if [ ! -d "/tmp/artifacts/frontend-dist" ]; then
+            echo "Error: Frontend artifacts directory not found"
+            ls -la /tmp/artifacts
+            exit 1
+          fi
+          
+          echo "\nFrontend artifact contents:"
+          find /tmp/artifacts/frontend-dist -type f | sort
+          
+          echo "\nVerifying required files..."
+          if [ ! -f "/tmp/artifacts/frontend-dist/.next/BUILD_ID" ]; then
+            echo "Error: BUILD_ID file is missing from frontend artifacts"
+            exit 1
+          fi
+          
+          echo "\nAll artifacts verified successfully"
           
       # Setup Node.js and dependencies
       - name: Setup Node.js
@@ -254,11 +300,40 @@ jobs:
           npm ci --prefer-offline
           npm cache clean --force
           
-      # Copy the downloaded .next directory to the frontend working directory
+      # Restore the frontend build from downloaded artifacts
       - name: Restore frontend build
         run: |
+          echo "Restoring frontend build..."
+          
+          # Ensure the target directory exists
           mkdir -p ${{ env.FRONTEND_WORKING_DIR }}/.next
-          cp -r /tmp/frontend-dist/.next/* ${{ env.FRONTEND_WORKING_DIR }}/.next/
+          
+          # Copy the artifacts to the correct location
+          echo "Copying artifacts from /tmp/artifacts/frontend-dist to ${{ env.FRONTEND_WORKING_DIR }}"
+          
+          # Copy all files from the artifact to the .next directory
+          if [ -d "/tmp/artifacts/frontend-dist" ]; then
+            cp -r /tmp/artifacts/frontend-dist/.next/* ${{ env.FRONTEND_WORKING_DIR }}/.next/
+            
+            # Verify the copy was successful
+            if [ $? -ne 0 ]; then
+              echo "Error: Failed to copy frontend artifacts"
+              exit 1
+            fi
+            
+            echo "Verifying restored files..."
+            if [ ! -f "${{ env.FRONTEND_WORKING_DIR }}/.next/BUILD_ID" ]; then
+              echo "Error: BUILD_ID file is missing after restore"
+              exit 1
+            fi
+            
+            echo "Frontend build restored successfully"
+            echo "Contents of ${{ env.FRONTEND_WORKING_DIR }}/.next:"
+            ls -la ${{ env.FRONTEND_WORKING_DIR }}/.next
+          else
+            echo "Error: Frontend artifacts not found in /tmp/artifacts/frontend-dist"
+            exit 1
+          fi
           
       # Run the tests
       - name: Run Integration Tests
