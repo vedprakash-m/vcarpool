@@ -55,12 +55,9 @@ var storageAccountName = toLower(take('${replace(appName, '-', '')}${environment
 resource storageAccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
   name: storageAccountName
   location: location
-  tags: union(baseTags, {
-    storageType: environmentConfig.storageSku
-    autoShutdown: environmentName != 'prod' ? 'enabled' : 'disabled'
-  })
+  tags: baseTags
   sku: {
-    name: environmentConfig.storageSku
+    name: 'Standard_LRS'
   }
   kind: 'StorageV2'
   properties: {
@@ -69,8 +66,8 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-08-01' = {
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
     networkAcls: {
-      defaultAction: 'Allow' // Temporarily allow all traffic during deployment
-      bypass: 'AzureServices' // Allow trusted Azure services to access the storage account
+      defaultAction: 'Allow' // Allow all traffic
+      bypass: 'AzureServices'
       ipRules: []
       virtualNetworkRules: []
     }
@@ -203,20 +200,18 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
   }
 }
 
-// Assign Storage Blob Data Contributor role to Function App
-// This role has fewer permissions and is easier to assign
-resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
-  name: guid(functionApp.id, storageAccount.id, 'blob-data-contributor')
-  scope: resourceGroup()
+// Get storage account connection string
+var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+
+// Add storage account connection strings to Function App settings
+resource functionAppSettings 'Microsoft.Web/sites/config@2021-03-01' = {
+  name: 'appsettings'
+  parent: functionApp
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
-    principalId: functionApp.identity.principalId
-    principalType: 'ServicePrincipal'
+    AzureWebJobsStorage: storageConnectionString
+    WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: storageConnectionString
+    StorageConnectionString: storageConnectionString
   }
-  dependsOn: [
-    functionApp
-    storageAccount
-  ]
 }
 
 // Static Web App - Frontend
