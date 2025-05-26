@@ -18,8 +18,6 @@ Runs on every push to `main` or `develop` branches, and on pull requests.
 
 ### 2. Deploy (`deploy.yml`)
 
-### 2. Deploy Workflow (`deploy.yml`)
-
 **Trigger**: After a successful build workflow run
 
 **Purpose**: Deploy the application to Azure
