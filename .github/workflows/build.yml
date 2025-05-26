@@ -47,21 +47,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js and install dependencies
-        uses: ./.github/workflows/reusable/node-setup.yml
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm cache clean --force
 
   shared-build:
     needs: [setup, install-dependencies]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js and install dependencies
-        uses: ./.github/workflows/reusable/node-setup.yml
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          working-directory: ${{ env.SHARED_WORKING_DIR }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.SHARED_WORKING_DIR }}/package-lock.json
+      - name: Install dependencies
+        run: |
+          cd ${{ env.SHARED_WORKING_DIR }}
+          npm ci
+          npm cache clean --force
       - name: Build shared library
         run: |
           echo "Building shared library..."
@@ -81,11 +92,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js and install dependencies
-        uses: ./.github/workflows/reusable/node-setup.yml
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          working-directory: ${{ env.BACKEND_WORKING_DIR }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.BACKEND_WORKING_DIR }}/package-lock.json
+      - name: Install dependencies
+        run: |
+          cd ${{ env.BACKEND_WORKING_DIR }}
+          npm ci
+          npm cache clean --force
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
         with:
@@ -113,10 +130,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js and install dependencies
-        uses: ./.github/workflows/reusable/node-setup.yml
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Install dependencies
+        run: |
+          cd ${{ env.FRONTEND_WORKING_DIR }}
+          npm ci
+          npm cache clean --force
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
         with:
@@ -162,11 +185,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js and install dependencies
-        uses: ./.github/workflows/reusable/node-setup.yml
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+          cache: 'npm'
+      - name: Install dependencies
+        run: |
+          cd ${{ env.FRONTEND_WORKING_DIR }}
+          npm ci
+          npm cache clean --force
       - name: Download backend artifacts
         uses: actions/download-artifact@v4
         with:
