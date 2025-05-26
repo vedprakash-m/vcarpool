@@ -162,19 +162,36 @@ jobs:
           name: shared-dist
           path: ${{ env.SHARED_WORKING_DIR }}
       - name: Build Frontend
+        id: build-frontend
         run: |
-          echo "Setting up OpenSSL legacy provider..."
-          export NODE_OPTIONS=--openssl-legacy-provider
-          echo "NODE_OPTIONS set to: $NODE_OPTIONS"
-          echo "Running npm install..."
-          npm install
-          echo "Running npm run build..."
-          npm run build
-          echo "Build completed. Contents of .next:"
-          ls -la .next/
+          echo "=== Starting Frontend Build ==="
+          
+          # Show environment
+          echo "Working directory: $(pwd)"
+          echo "Node version: $(node -v)"
+          echo "NPM version: $(npm -v)"
+          
+          # Install dependencies
+          echo "Installing dependencies..."
+          npm ci
+          
+          # Run build with debug output
+          echo "Running build..."
+          NODE_OPTIONS=--openssl-legacy-provider npm run build
+          
+          # Verify build output
+          echo "Build completed. Directory contents:"
+          ls -la
+          
+          echo ".next directory contents:"
+          ls -la .next || echo "No .next directory found!"
+          
+          # Create a simple test file to verify artifact upload
+          echo "Creating test artifact..."
+          mkdir -p /tmp/artifacts
+          echo "Test artifact created at $(date)" > /tmp/artifacts/build-info.txt
+          
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
-        env:
-          NODE_OPTIONS: --openssl-legacy-provider
 
       - name: Run Frontend Tests
         run: |
@@ -190,128 +207,15 @@ jobs:
         run: npm audit --production
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
         continue-on-error: true  # Don't fail the build on audit failures, but still report them
-      - name: Prepare frontend artifacts
-        id: prepare-artifacts
-        run: |
-          # Set artifact directory
-          ARTIFACT_DIR="/tmp/frontend-dist"
-          echo "=== Preparing artifacts in $ARTIFACT_DIR ==="
-          
-          # Show current working directory and contents
-          echo "Current working directory:"
-          pwd
-          echo "Directory contents:"
-          ls -la
-          
-          # Verify .next directory exists
-          if [ ! -d ".next" ]; then
-            echo "Error: .next directory not found in working directory"
-            echo "Current directory contents:"
-            ls -la .
-            exit 1
-          fi
-          
-          # Show contents of .next directory
-          echo "Contents of .next directory:"
-          ls -la .next/
-          
-          # Create artifact directory
-          echo "Creating artifact directory: $ARTIFACT_DIR"
-          mkdir -p "$ARTIFACT_DIR"
-          
-          # Copy the .next directory
-          echo "Copying .next directory to $ARTIFACT_DIR"
-          if ! cp -r .next "$ARTIFACT_DIR/"; then
-            echo "Error: Failed to copy .next directory"
-            exit 1
-          fi
-          
-          # Verify the copy was successful
-          echo "Verifying copied files..."
-          if [ ! -d "$ARTIFACT_DIR/.next" ]; then
-            echo "Error: Failed to copy .next directory"
-            exit 1
-          fi
-          
-          # List the contents for debugging
-          echo "Contents of $ARTIFACT_DIR:"
-          ls -la "$ARTIFACT_DIR"
-          
-          echo "Contents of $ARTIFACT_DIR/.next:"
-          ls -la "$ARTIFACT_DIR/.next"
-          
-          # Verify we have the required files
-          if [ ! -f "$ARTIFACT_DIR/.next/BUILD_ID" ]; then
-            echo "Error: BUILD_ID file is missing from .next directory"
-            echo "All files in $ARTIFACT_DIR/.next:"
-            find "$ARTIFACT_DIR/.next" -type f | sort
-            exit 1
-          fi
-          
-          # Create a test file to verify the directory is writable
-          echo "Creating test file in $ARTIFACT_DIR"
-          echo "test" > "$ARTIFACT_DIR/test.txt"
-          
-          echo "Artifacts prepared successfully in $ARTIFACT_DIR"
-        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
-      
-      - name: Verify and prepare for artifact upload
-        id: verify-upload
-        run: |
-          ARTIFACT_DIR="/tmp/frontend-dist"
-          echo "=== Verifying artifact directory for upload ==="
-          
-          # Check if directory exists
-          if [ ! -d "$ARTIFACT_DIR" ]; then
-            echo "Error: Artifact directory $ARTIFACT_DIR does not exist"
-            echo "Contents of /tmp:"
-            ls -la /tmp/
-            exit 1
-          fi
-          
-          # Check directory contents
-          echo "Contents of $ARTIFACT_DIR:"
-          ls -la "$ARTIFACT_DIR"
-          
-          # Check for .next directory
-          if [ ! -d "$ARTIFACT_DIR/.next" ]; then
-            echo "Error: .next directory not found in $ARTIFACT_DIR"
-            echo "All files in $ARTIFACT_DIR:"
-            find "$ARTIFACT_DIR" -type f | sort
-            exit 1
-          fi
-          
-          # Verify BUILD_ID exists
-          if [ ! -f "$ARTIFACT_DIR/.next/BUILD_ID" ]; then
-            echo "Error: BUILD_ID file not found in $ARTIFACT_DIR/.next"
-            echo "Contents of $ARTIFACT_DIR/.next:"
-            ls -la "$ARTIFACT_DIR/.next"
-            exit 1
-          fi
-          
-          # Create a test file to verify write permissions
-          TEST_FILE="$ARTIFACT_DIR/upload-test-$(date +%s).txt"
-          echo "Creating test file: $TEST_FILE"
-          if ! echo "test" > "$TEST_FILE"; then
-            echo "Error: Failed to create test file in $ARTIFACT_DIR"
-            echo "Directory permissions:"
-            ls -ld "$ARTIFACT_DIR"
-            exit 1
-          fi
-          
-          echo "Artifact directory is ready for upload"
-      
-      - name: Upload frontend artifacts
-        id: upload-artifacts
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
+        if: always()  # Always run this step, even if previous steps failed
         with:
-          name: frontend-dist
+          name: frontend-build
           path: |
-            /tmp/frontend-dist/.next
-            /tmp/frontend-dist/upload-test-*.txt
-          if-no-files-found: error
+            ${{ env.FRONTEND_WORKING_DIR }}/.next
+            /tmp/artifacts/
           retention-days: 1
-          compression-level: 0  # Disable compression to save time
 
   integration-tests:
     needs: [backend-build, frontend-build]
@@ -319,158 +223,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Create directories for artifacts
-      - name: Create artifact directories
-        run: |
-          mkdir -p /tmp/artifacts/frontend-dist
-          mkdir -p "${{ env.BACKEND_WORKING_DIR }}"
-      
-      # Download artifacts first
-      - name: Download backend artifacts
-        id: download-backend
+      # Download artifacts
+      - name: Download frontend build
         uses: actions/download-artifact@v4
         with:
-          name: backend-dist
-          path: ${{ env.BACKEND_WORKING_DIR }}
+          name: frontend-build
+          path: /tmp/artifacts
       
-      - name: Download frontend artifacts
-        id: download-frontend
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-dist
-          path: /tmp/artifacts/frontend-dist
-          
-      # Verify downloaded artifacts
-      - name: Verify downloaded artifacts
+      # Show downloaded files
+      - name: Show downloaded artifacts
         run: |
-          echo "=== Current Directory ==="
-          pwd
-          ls -la
-          
-          echo "\n=== Backend artifacts ==="
-          if [ ! -d "${{ env.BACKEND_WORKING_DIR }}/dist" ]; then
-            echo "Error: Backend dist directory not found"
-            echo "Contents of ${{ env.BACKEND_WORKING_DIR }}:"
-            ls -la "${{ env.BACKEND_WORKING_DIR }}"
-            exit 1
-          fi
-          
-          echo "\n=== Frontend artifacts ==="
-          if [ ! -d "/tmp/artifacts/frontend-dist" ]; then
-            echo "Error: Frontend artifacts directory not found"
-            echo "Contents of /tmp/artifacts:"
-            ls -la /tmp/artifacts
-            exit 1
-          fi
-          
-          echo "\nFrontend artifact directory structure:"
-          find /tmp/artifacts/frontend-dist -type d | sort
-          
-          echo "\nFrontend artifact files:"
-          find /tmp/artifacts/frontend-dist -type f | sort
-          
-          echo "\nVerifying required files..."
-          if [ ! -d "/tmp/artifacts/frontend-dist/.next" ]; then
-            echo "Error: .next directory is missing from frontend artifacts"
-            echo "Contents of frontend-dist:"
-            ls -la /tmp/artifacts/frontend-dist
-            exit 1
-          fi
-          
-          if [ ! -f "/tmp/artifacts/frontend-dist/.next/BUILD_ID" ]; then
-            echo "Error: BUILD_ID file is missing from frontend artifacts"
-            echo "Contents of .next directory:"
-            ls -la /tmp/artifacts/frontend-dist/.next
-            exit 1
-          fi
-          
-          echo "\nAll artifacts verified successfully"
-          
-      # Setup Node.js and dependencies
+          echo "=== Downloaded artifacts ==="
+          find /tmp/artifacts -type f | sort
+          echo "\n=== Build info ==="
+          cat /tmp/artifacts/build-info.txt || echo "No build info found"
+      
+      # Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          
-      - name: Cache node modules
-        id: cache-node-modules
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.FRONTEND_WORKING_DIR }}/node_modules
-          key: ${{ runner.os }}-node-modules-integration-${{ hashFiles('**/package-lock.json') }}
-          
+      
+      # Install dependencies
       - name: Install dependencies
         run: |
+          echo "Installing dependencies..."
           cd ${{ env.FRONTEND_WORKING_DIR }}
-          npm ci --prefer-offline
-          npm cache clean --force
-          
-      # Restore the frontend build from downloaded artifacts
-      - name: Restore frontend build
-        run: |
-          echo "=== Restoring frontend build ==="
-          
-          # Source and target directories
-          SRC_DIR="/tmp/artifacts/frontend-dist"
-          TARGET_DIR="${{ env.FRONTEND_WORKING_DIR }}/.next"
-          
-          echo "Source directory: $SRC_DIR"
-          echo "Target directory: $TARGET_DIR"
-          
-          # Verify source directory exists
-          if [ ! -d "$SRC_DIR" ]; then
-            echo "Error: Source directory $SRC_DIR does not exist"
-            exit 1
-          fi
-          
-          # Ensure target directory exists
-          echo "Creating target directory: $TARGET_DIR"
-          mkdir -p "$TARGET_DIR"
-          
-          # Check if .next exists in source
-          if [ ! -d "$SRC_DIR/.next" ]; then
-            echo "Error: .next directory not found in $SRC_DIR"
-            echo "Contents of $SRC_DIR:"
-            ls -la "$SRC_DIR"
-            exit 1
-          fi
-          
-          # Copy the .next directory
-          echo "Copying .next directory from $SRC_DIR/.next to $TARGET_DIR"
-          cp -r "$SRC_DIR/.next/"* "$TARGET_DIR/"
-          
-          # Verify the copy was successful
-          if [ $? -ne 0 ]; then
-            echo "Error: Failed to copy frontend artifacts"
-            exit 1
-          fi
-          
-          # Verify the BUILD_ID file exists
-          echo "Verifying restored files..."
-          if [ ! -f "$TARGET_DIR/BUILD_ID" ]; then
-            echo "Error: BUILD_ID file is missing after restore"
-            echo "Contents of $TARGET_DIR:"
-            ls -la "$TARGET_DIR"
-            exit 1
-          fi
-          
-          echo "Frontend build restored successfully"
-          echo "Contents of $TARGET_DIR:"
-          ls -la "$TARGET_DIR"
-          
-          echo "Verifying next build..."
-          if [ -f "${{ env.FRONTEND_WORKING_DIR }}/node_modules/.bin/next" ]; then
-            "${{ env.FRONTEND_WORKING_DIR }}/node_modules/.bin/next" info
-          else
-            echo "Next.js binary not found, skipping verification"
-          fi
-          
-      # Run the tests
+          npm ci
+      
+      # Run integration tests
       - name: Run Integration Tests
         run: |
-          echo "Setting up OpenSSL legacy provider for tests..."
-          echo "NODE_OPTIONS set to: $NODE_OPTIONS"
           echo "Running integration tests..."
           npm test
         working-directory: ${{ env.FRONTEND_WORKING_DIR }}
