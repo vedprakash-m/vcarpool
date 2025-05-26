@@ -138,105 +138,104 @@ jobs:
   frontend-build:
     needs: shared-build
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --openssl-legacy-provider
+      CI: true
+      NEXT_TELEMETRY_DISABLED: 1
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
     steps:
       - uses: actions/checkout@v4
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+      
       - name: Cache node modules
-        id: cache-node-modules
         uses: actions/cache@v3
+        id: cache-node-modules
         with:
-          path: ${{ env.FRONTEND_WORKING_DIR }}/node_modules
-          key: ${{ runner.os }}-node-modules-frontend-${{ hashFiles('**/package-lock.json') }}
+          path: |
+            ${{ env.FRONTEND_WORKING_DIR }}/node_modules
+            ${{ env.FRONTEND_WORKING_DIR }}/.next/cache
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+      
       - name: Install dependencies
         run: |
-          cd ${{ env.FRONTEND_WORKING_DIR }}
-          npm ci
-          npm cache clean --force
+          npm ci --prefer-offline
+          npx next telemetry disable
+      
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
         with:
           name: shared-dist
           path: ${{ env.SHARED_WORKING_DIR }}
+      
       - name: Build Frontend
-        id: build-frontend
         run: |
           echo "=== Starting Frontend Build ==="
-          
-          # Show environment
           echo "Working directory: $(pwd)"
           echo "Node version: $(node -v)"
           echo "NPM version: $(npm -v)"
           
-          # Install dependencies
-          echo "Installing dependencies..."
-          npm ci
-          
           # Run build with debug output
           echo "Running build..."
-          NODE_OPTIONS=--openssl-legacy-provider npm run build
+          npm run build
           
           # Verify build output
           echo "Build completed. Directory contents:"
           ls -la
           
+          if [ ! -d ".next" ]; then
+            echo "Error: .next directory not found after build"
+            exit 1
+          fi
+          
           echo ".next directory contents:"
-          ls -la .next || echo "No .next directory found!"
-          
-          # Create a simple test file to verify artifact upload
-          echo "Creating test artifact..."
-          mkdir -p /tmp/artifacts
-          echo "Test artifact created at $(date)" > /tmp/artifacts/build-info.txt
-          
-        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
-
+          ls -la .next/
+      
       - name: Run Frontend Tests
-        run: |
-          echo "Setting up OpenSSL legacy provider for tests..."
-          echo "NODE_OPTIONS set to: $NODE_OPTIONS"
-          echo "Running tests..."
-          npm test
-        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
-        env:
-          NODE_OPTIONS: --openssl-legacy-provider
-          CI: true
+        run: npm test
+      
       - name: Run security audit
         run: npm audit --production
-        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
-        continue-on-error: true  # Don't fail the build on audit failures, but still report them
+        continue-on-error: true
+      
+      - name: Create build info
+        run: |
+          mkdir -p /tmp/build-info
+          echo "Build completed at: $(date)" > /tmp/build-info/build-info.txt
+          echo "Commit: ${{ github.sha }}" >> /tmp/build-info/build-info.txt
+          echo "Ref: ${{ github.ref }}" >> /tmp/build-info/build-info.txt
+      
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
-        if: always()  # Always run this step, even if previous steps failed
         with:
           name: frontend-build
           path: |
             ${{ env.FRONTEND_WORKING_DIR }}/.next
-            /tmp/artifacts/
-          retention-days: 1
+            /tmp/build-info
+          retention-days: 7
+          compression-level: 9
+          if-no-files-found: error
 
   integration-tests:
     needs: [backend-build, frontend-build]
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --openssl-legacy-provider
+      CI: true
+      NEXT_TELEMETRY_DISABLED: 1
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
     steps:
       - uses: actions/checkout@v4
-      
-      # Download artifacts
-      - name: Download frontend build
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
-          path: /tmp/artifacts
-      
-      # Show downloaded files
-      - name: Show downloaded artifacts
-        run: |
-          echo "=== Downloaded artifacts ==="
-          find /tmp/artifacts -type f | sort
-          echo "\n=== Build info ==="
-          cat /tmp/artifacts/build-info.txt || echo "No build info found"
       
       # Setup Node.js
       - name: Setup Node.js
@@ -245,34 +244,118 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
       
+      # Cache node modules and Playwright browsers
+      - name: Cache node modules and Playwright
+        uses: actions/cache@v3
+        id: cache-node-modules
+        with:
+          path: |
+            ${{ env.FRONTEND_WORKING_DIR }}/node_modules
+            ${{ env.FRONTEND_WORKING_DIR }}/.next/cache
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+      
       # Install dependencies
       - name: Install dependencies
         run: |
-          echo "Installing dependencies..."
-          cd ${{ env.FRONTEND_WORKING_DIR }}
-          npm ci
+          npm ci --prefer-offline
+          npx next telemetry disable
       
-      # Run integration tests
-      - name: Run Integration Tests
+      # Download and verify frontend build artifacts
+      - name: Download frontend build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ${{ env.FRONTEND_WORKING_DIR }}
+      
+      # Verify downloaded artifacts
+      - name: Verify build artifacts
         run: |
-          echo "Running integration tests..."
-          npm test
-        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
-        env:
-          NODE_OPTIONS: --openssl-legacy-provider
-          CI: true
-          NODE_ENV: test
+          echo "=== Verifying build artifacts ==="
+          
+          # Check if .next directory exists
+          if [ ! -d ".next" ]; then
+            echo "Error: .next directory not found"
+            echo "Current directory: $(pwd)"
+            ls -la
+            exit 1
+          fi
+          
+          # Check for required files
+          REQUIRED_FILES=(
+            ".next/BUILD_ID"
+            ".next/static/chunks/main.js"
+            ".next/server/pages-manifest.json"
+          )
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "Error: Required file not found: $file"
+              echo "Contents of .next:"
+              find .next -type f | sort
+              exit 1
+            fi
+          done
+          
+          echo "Build artifacts verified successfully"
+      
+      # Show build info
+      - name: Show build info
+        run: |
+          echo "=== Build Info ==="
+          if [ -f "/tmp/build-info/build-info.txt" ]; then
+            cat /tmp/build-info/build-info.txt
+          else
+            echo "No build info found"
+          fi
+      
+      # Start backend server
       - name: Start backend server
         run: |
+          echo "Starting backend server..."
           npm install -g @azure/static-web-apps-cli
-          swa start ${{ env.BACKEND_WORKING_DIR }} --api-location ${{ env.BACKEND_WORKING_DIR }}/dist --port 7071 & echo $! > backend_pid
-          trap "kill $(cat backend_pid)" EXIT
+          swa start ${{ env.BACKEND_WORKING_DIR }} \
+            --api-location ${{ env.BACKEND_WORKING_DIR }}/dist \
+            --port 7071 \
+            & echo $! > backend_pid
+          
+          # Wait for server to be ready
+          echo "Waiting for backend to be ready..."
+          timeout 60 bash -c 'until curl -s http://localhost:7071/api/health >/dev/null; do echo "Waiting for backend..."; sleep 2; done' || \
+            (echo "Backend server failed to start"; exit 1)
+          
+          echo "Backend server is running"
           echo "BACKEND_URL=http://localhost:7071" >> $GITHUB_ENV
         working-directory: ${{ env.BACKEND_WORKING_DIR }}
+      
+      # Run integration tests
       - name: Run integration tests
         env:
+          NODE_ENV: test
+          NEXT_PUBLIC_API_URL: http://localhost:7071/api
           BACKEND_URL: http://localhost:7071
         run: |
-          echo "Running integration tests against $BACKEND_URL"
+          echo "=== Running Integration Tests ==="
+          echo "NEXT_PUBLIC_API_URL: $NEXT_PUBLIC_API_URL"
+          echo "BACKEND_URL: $BACKEND_URL"
+          
+          # Run unit tests
+          echo "Running unit tests..."
+          npm test
+          
+          # Run E2E tests
+          echo "Running E2E tests..."
           npm run test:e2e
-        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+      
+      # Cleanup (runs even if previous steps fail)
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up..."
+          if [ -f "backend_pid" ]; then
+            echo "Stopping backend server..."
+            kill $(cat backend_pid) 2>/dev/null || true
+          fi
+        working-directory: ${{ env.BACKEND_WORKING_DIR }}
