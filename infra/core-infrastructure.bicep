@@ -203,15 +203,20 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
   }
 }
 
-// Assign Storage Account Contributor role to Function App
-resource storageAccountRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(functionApp.id, 'storage-account-role')
-  scope: storageAccount
+// Assign Storage Blob Data Contributor role to Function App
+// This role has fewer permissions and is easier to assign
+resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
+  name: guid(functionApp.id, storageAccount.id, 'blob-data-contributor')
+  scope: resourceGroup()
   properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
     principalId: functionApp.identity.principalId
-    roleDefinitionId: '/providers/Microsoft.Authorization/roleDefinitions/17d1049b-9a84-46fb-8f53-869881c3d3ab' // Storage Account Contributor
     principalType: 'ServicePrincipal'
   }
+  dependsOn: [
+    functionApp
+    storageAccount
+  ]
 }
 
 // Static Web App - Frontend
