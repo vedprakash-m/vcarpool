@@ -1,0 +1,33 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "node",
+  "transform": {
+    "^.+\\.tsx?$": [
+      "ts-jest",
+      {
+        "tsconfig": "tsconfig.json"
+      }
+    ]
+  },
+  "testMatch": ["**/integration/**/*.test.ts"],
+  "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
+  "globals": {
+    "ts-jest": {
+      "isolatedModules": true
+    }
+  },
+  "testTimeout": 30000,
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/$1",
+    "^@shared/(.*)$": "<rootDir>/../shared/src/$1",
+    "^@carpool/shared$": "<rootDir>/../shared/dist/index.js",
+    "^@carpool/shared/(.*)$": "<rootDir>/../shared/dist/$1"
+  },
+  "globalSetup": "<rootDir>/tests/global-setup.ts",
+  "globalTeardown": "<rootDir>/tests/global-teardown.ts",
+  "setupFilesAfterEnv": ["<rootDir>/tests/setup.ts"],
+  "collectCoverage": true,
+  "collectCoverageFrom": ["src/**/*.ts", "!src/**/*.d.ts"],
+  "coverageReporters": ["text", "lcov"],
+  "coverageDirectory": "coverage/integration"
+}

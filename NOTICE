@@ -1,0 +1,72 @@
+Carpool - Smart Carpool Management Platform
+Copyright (C) 2025 Vedprakash Mishra
+
+# LICENSING NOTICE
+
+This project is licensed under the GNU Affero General Public License version 3 (AGPLv3).
+The full license text is available in the LICENSE file in this repository.
+
+KEY LICENSING TERMS:
+
+- This software is free software: you can redistribute it and/or modify it under
+  the terms of the GNU Affero General Public License as published by the Free
+  Software Foundation, either version 3 of the License, or (at your option) any
+  later version.
+
+- This software is distributed in the hope that it will be useful, but WITHOUT
+  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+  FOR A PARTICULAR PURPOSE.
+
+- If you modify this software and make it available to users over a network
+  (such as through a web service), you MUST make the source code of your
+  modified version available to those users under the same AGPLv3 license.
+
+# ATTRIBUTION REQUIREMENTS:
+
+When using, redistributing, or modifying this software, you must:
+
+1. Preserve all copyright notices and license information
+2. Include a copy of the AGPLv3 license with any distribution
+3. Clearly indicate any modifications you have made to the original software
+4. If you operate this software as a network service, provide users with
+   access to the corresponding source code
+
+# NETWORK SERVICE PROVISION:
+
+The AGPLv3 license requires that if you run a modified version of this software
+on a server and allow users to interact with it over a network, you must offer
+those users the opportunity to receive the source code of your modified version
+at no charge.
+
+This applies to any web hosting, SaaS deployment, or other network-accessible
+service based on this software.
+
+# TRADEMARK NOTICE:
+
+"Carpool" is a trademark of Vedprakash Mishra. Use of the trademark in
+connection with derivative works or commercial services may require permission.
+
+# COMMERCIAL USE:
+
+This software may be used for commercial purposes under the AGPLv3 license
+terms. However, any commercial service based on this software must comply with
+the source code disclosure requirements of the AGPLv3.
+
+For commercial licensing options that do not require source code disclosure,
+please contact the copyright holder.
+
+# CONTACT INFORMATION:
+
+For questions about licensing, commercial use, or contribution guidelines:
+
+- Project Repository: https://github.com/vedprakashmishra/carpool
+- License Questions: Contact the copyright holder
+- Contributions: See CONTRIBUTING.md
+
+# NO WARRANTY:
+
+This software is provided "AS IS" without warranty of any kind. The copyright
+holder and contributors are not liable for any damages arising from its use.
+
+For the complete license terms, see the LICENSE file in this repository or
+visit https://www.gnu.org/licenses/agpl-3.0.html

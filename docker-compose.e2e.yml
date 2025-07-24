@@ -1,0 +1,128 @@
+# Carpool E2E Testing Environment
+# This docker-compose file sets up an isolated testing environment for the carpool application
+
+# Note: Removed version as it's obsolete in newer Docker Compose versions
+
+services:
+  # MongoDB instance dedicated for E2E testing
+  mongodb-test:
+    image: mongo:7-jammy
+    container_name: carpool-mongodb-test
+    restart: no
+    ports:
+      - '27018:27017' # Different port to avoid conflicts with local MongoDB
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: testuser
+      MONGO_INITDB_ROOT_PASSWORD: testpass
+      MONGO_INITDB_DATABASE: carpool_test
+    volumes:
+      - mongodb_test_data:/data/db
+      - ./e2e/test-data/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - carpool-test-network
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Backend service for E2E testing
+  backend-test:
+    build:
+      context: . # Build from monorepo root, not just backend
+      dockerfile: e2e/docker/Dockerfile.backend-test
+    container_name: carpool-backend-test
+    restart: no
+    ports:
+      - '7072:7071' # Different port to avoid conflicts
+    environment:
+      - NODE_ENV=test
+      - COSMOS_DB_CONNECTION_STRING=mongodb://testuser:testpass@mongodb-test:27017/carpool_test?authSource=admin
+      - STORAGE_ACCOUNT_CONNECTION_STRING=UseDevelopmentStorage=true
+      - JWT_SECRET=test-jwt-secret-for-e2e-only
+      - CORS_ORIGIN=http://frontend-test:3000
+      - PORT=7071
+      - HOST=0.0.0.0
+    depends_on:
+      mongodb-test:
+        condition: service_healthy
+    networks:
+      - carpool-test-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:7071/api/health']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Frontend service for E2E testing
+  frontend-test:
+    build:
+      context: . # Build from monorepo root
+      dockerfile: e2e/docker/Dockerfile.frontend-test
+    container_name: carpool-frontend-test
+    restart: no
+    ports:
+      - '3001:3000' # Different port to avoid conflicts
+    environment:
+      - NODE_ENV=test
+      - NEXT_PUBLIC_API_URL=http://backend-test:7071/api
+      - NEXT_PUBLIC_ENVIRONMENT=e2e-test
+      - NEXTAUTH_URL=http://frontend-test:3000
+      - NEXTAUTH_SECRET=test-nextauth-secret-for-e2e-only
+    depends_on:
+      backend-test:
+        condition: service_healthy
+    networks:
+      - carpool-test-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+
+  # Playwright test runner service
+  playwright-tests:
+    build:
+      context: .
+      dockerfile: e2e/docker/Dockerfile.playwright
+    container_name: carpool-playwright-tests
+    restart: no
+    environment:
+      - NODE_ENV=test
+      - FRONTEND_URL=http://frontend-test:3000
+      - BACKEND_URL=http://backend-test:7071
+      - MONGODB_URL=mongodb://testuser:testpass@mongodb-test:27017/carpool_test?authSource=admin
+      - HEADLESS=true
+      - CI=true
+    depends_on:
+      frontend-test:
+        condition: service_healthy
+      backend-test:
+        condition: service_healthy
+    networks:
+      - carpool-test-network
+    volumes:
+      - ./e2e:/app/e2e
+      - ./e2e/test-results:/app/e2e/test-results
+      - ./e2e/playwright-report:/app/e2e/playwright-report
+    profiles:
+      - test # Only start when specifically requested
+
+volumes:
+  mongodb_test_data:
+    driver: local
+
+networks:
+  carpool-test-network:
+    driver: bridge
+    name: carpool-test-network

@@ -1,0 +1,362 @@
+/**
+ * Frontend State Management Optimizations
+ * Optimized Zustand store patterns and utilities
+ */
+
+import React from 'react';
+import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
+import { immer } from 'zustand/middleware/immer';
+import { persist } from 'zustand/middleware';
+
+/**
+ * Cache manager for optimized data fetching
+ */
+class CacheManager {
+  private cache = new Map<string, {
+    data: any;
+    timestamp: number;
+    ttl: number;
+  }>();
+
+  set(key: string, data: any, ttl: number = 5 * 60 * 1000) {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl
+    });
+  }
+
+  get(key: string): any | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.data;
+  }
+
+  invalidate(keyPattern: string) {
+    for (const key of this.cache.keys()) {
+      if (key.includes(keyPattern)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
+  clear() {
+    this.cache.clear();
+  }
+
+  getStats() {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys())
+    };
+  }
+}
+
+export const cacheManager = new CacheManager();
+
+/**
+ * Optimized store factory with common performance patterns
+ */
+export function createOptimizedStore<T extends object>(
+  initialState: T,
+  config?: {
+    persist?: {
+      name: string;
+      partialize?: (state: T) => Partial<T>;
+    };
+    enableCache?: boolean;
+    enableSubscriptions?: boolean;
+  }
+) {
+  let storeCreator = create<T>();
+
+  // Add immer for immutable updates
+  storeCreator = immer(storeCreator);
+
+  // Add subscription middleware if enabled
+  if (config?.enableSubscriptions) {
+    storeCreator = subscribeWithSelector(storeCreator);
+  }
+
+  // Add persistence if configured
+  if (config?.persist) {
+    storeCreator = persist(storeCreator, {
+      name: config.persist.name,
+      partialize: config.persist.partialize
+    });
+  }
+
+  return storeCreator;
+}
+
+/**
+ * Optimized async data fetching hook for stores
+ */
+export function createAsyncActions<T>(cacheKey: string) {
+  return {
+    fetchWithCache: async <R>(
+      fetcher: () => Promise<R>,
+      ttl?: number
+    ): Promise<R> => {
+      // Check cache first
+      const cached = cacheManager.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Fetch and cache
+      const data = await fetcher();
+      cacheManager.set(cacheKey, data, ttl);
+      return data;
+    },
+
+    invalidateCache: () => {
+      cacheManager.invalidate(cacheKey);
+    },
+
+    batchActions: (actions: Array<() => void>) => {
+      // Batch multiple state updates
+      actions.forEach(action => action());
+    }
+  };
+}
+
+/**
+ * Performance-optimized trip store
+ */
+interface OptimizedTripState {
+  trips: any[];
+  loading: boolean;
+  error: string | null;
+  lastFetch: number;
+  pagination: {
+    page: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}
+
+interface OptimizedTripActions {
+  fetchTrips: (page?: number, force?: boolean) => Promise<void>;
+  addTrip: (trip: any) => void;
+  updateTrip: (id: string, updates: any) => void;
+  removeTrip: (id: string) => void;
+  clearCache: () => void;
+  optimisticUpdate: (id: string, updates: any) => void;
+  revertOptimisticUpdate: (id: string, originalData: any) => void;
+}
+
+export const useOptimizedTripStore = create<OptimizedTripState & OptimizedTripActions>()(
+  subscribeWithSelector(
+    immer((set, get) => ({
+      // State
+      trips: [],
+      loading: false,
+      error: null,
+      lastFetch: 0,
+      pagination: {
+        page: 1,
+        totalPages: 1,
+        hasMore: false
+      },
+
+      // Actions
+      fetchTrips: async (page = 1, force = false) => {
+        const state = get();
+        const cacheKey = `trips:page:${page}`;
+        const now = Date.now();
+        
+        // Check if we need to fetch
+        if (!force && state.lastFetch && (now - state.lastFetch) < 30000) {
+          const cached = cacheManager.get(cacheKey);
+          if (cached) {
+            set(draft => {
+              draft.trips = cached.trips;
+              draft.pagination = cached.pagination;
+            });
+            return;
+          }
+        }
+
+        set(draft => {
+          draft.loading = true;
+          draft.error = null;
+        });
+
+        try {
+          // Simulate API call
+          const response = await fetch(`/api/trips?page=${page}`);
+          const data = await response.json();
+
+          // Cache the response
+          cacheManager.set(cacheKey, data, 60000); // 1 minute cache
+
+          set(draft => {
+            draft.trips = page === 1 ? data.trips : [...draft.trips, ...data.trips];
+            draft.pagination = data.pagination;
+            draft.lastFetch = now;
+            draft.loading = false;
+          });
+        } catch (error) {
+          set(draft => {
+            draft.error = error instanceof Error ? error.message : 'Failed to fetch trips';
+            draft.loading = false;
+          });
+        }
+      },
+
+      addTrip: (trip) => {
+        set(draft => {
+          draft.trips.unshift(trip);
+        });
+        cacheManager.invalidate('trips:');
+      },
+
+      updateTrip: (id, updates) => {
+        set(draft => {
+          const index = draft.trips.findIndex(trip => trip.id === id);
+          if (index !== -1) {
+            Object.assign(draft.trips[index], updates);
+          }
+        });
+        cacheManager.invalidate('trips:');
+      },
+
+      removeTrip: (id) => {
+        set(draft => {
+          draft.trips = draft.trips.filter(trip => trip.id !== id);
+        });
+        cacheManager.invalidate('trips:');
+      },
+
+      clearCache: () => {
+        cacheManager.invalidate('trips:');
+        set(draft => {
+          draft.lastFetch = 0;
+        });
+      },
+
+      optimisticUpdate: (id, updates) => {
+        set(draft => {
+          const index = draft.trips.findIndex(trip => trip.id === id);
+          if (index !== -1) {
+            Object.assign(draft.trips[index], updates, { _optimistic: true });
+          }
+        });
+      },
+
+      revertOptimisticUpdate: (id, originalData) => {
+        set(draft => {
+          const index = draft.trips.findIndex(trip => trip.id === id);
+          if (index !== -1) {
+            draft.trips[index] = { ...originalData };
+          }
+        });
+      }
+    }))
+  )
+);
+
+/**
+ * Performance monitoring for stores
+ */
+export function withStorePerformanceMonitoring<T>(store: any, storeName: string) {
+  const originalSubscribe = store.subscribe;
+  
+  store.subscribe = (listener: any) => {
+    const wrappedListener = (state: T, prevState: T) => {
+      const startTime = performance.now();
+      listener(state, prevState);
+      const endTime = performance.now();
+      
+      if (endTime - startTime > 5) {
+        console.warn(
+          `Slow store listener in ${storeName}: ${(endTime - startTime).toFixed(2)}ms`
+        );
+      }
+    };
+    
+    return originalSubscribe(wrappedListener);
+  };
+
+  return store;
+}
+
+/**
+ * Selector optimization utilities
+ */
+export function createMemoizedSelector<T, R>(
+  selector: (state: T) => R,
+  equalityFn?: (a: R, b: R) => boolean
+) {
+  let lastResult: R;
+  let lastState: T;
+
+  return (state: T): R => {
+    if (state === lastState) {
+      return lastResult;
+    }
+
+    const result = selector(state);
+    
+    if (equalityFn ? equalityFn(result, lastResult) : result === lastResult) {
+      return lastResult;
+    }
+
+    lastState = state;
+    lastResult = result;
+    return result;
+  };
+}
+
+/**
+ * Batch update utility for multiple store updates
+ */
+export function batchStoreUpdates(updates: Array<() => void>) {
+  // Use React's batching in concurrent mode
+  if (React.startTransition) {
+    React.startTransition(() => {
+      updates.forEach(update => update());
+    });
+  } else {
+    // Fallback for older React versions
+    updates.forEach(update => update());
+  }
+}
+
+/**
+ * Store subscription utilities
+ */
+export function createSubscriptionManager() {
+  const subscriptions = new Set<() => void>();
+
+  return {
+    subscribe: (callback: () => void) => {
+      subscriptions.add(callback);
+      return () => subscriptions.delete(callback);
+    },
+
+    notify: () => {
+      subscriptions.forEach(callback => {
+        try {
+          callback();
+        } catch (error) {
+          console.error('Subscription callback error:', error);
+        }
+      });
+    },
+
+    clear: () => {
+      subscriptions.clear();
+    },
+
+    size: subscriptions.size
+  };
+}

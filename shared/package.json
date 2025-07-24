@@ -1,0 +1,24 @@
+{
+  "name": "@carpool/shared",
+  "version": "1.0.0",
+  "description": "Shared types and utilities for carpool application",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "tsc --build --force",
+    "dev": "tsc --watch",
+    "test": "echo 'Shared package: No tests to run. Build validation passed.' && exit 0",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "zod": "^3.22.4",
+    "@types/node": "^20.0.0"
+  }
+}

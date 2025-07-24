@@ -1,0 +1,32 @@
+# Security-focused pre-commit hooks
+# Code quality checks are handled by Husky hooks for better performance
+repos:
+  # Critical security checks only
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-yaml
+        exclude: ^\.github/workflows/
+      - id: check-json
+        exclude: package-lock\.json
+
+  # Detect secrets (lightweight)
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline', '--force-use-all-plugins']
+        exclude: package-lock\.json
+
+  # Local security patterns check
+  - repo: local
+    hooks:
+      - id: security-patterns
+        name: Check for hardcoded secrets
+        entry: bash -c 'if grep -rE "(password|secret|key|token|api[_-]?key)" --exclude-dir=node_modules --exclude-dir=.git --include="*.ts" --include="*.js" --include="*.json" .; then echo "❌ Potential secrets found"; exit 1; fi'
+        language: system
+        pass_filenames: false

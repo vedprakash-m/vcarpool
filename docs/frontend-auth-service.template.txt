@@ -1,0 +1,349 @@
+/**
+ * UNIFIED AUTHENTICATION SERVICE FOR FRONTEND
+ *
+ * This service provides a clean interface for frontend applications
+ * to interact with the unified /api/auth endpoint.
+ *
+ * Usage:
+ *   import { AuthService } from './services/auth.service';
+ *
+ *   const authResult = await AuthService.login(email, password);
+ *   if (authResult.success) {
+ *     // Handle successful login
+ *   }
+ */
+
+// Types for authentication responses
+export interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
+export interface AuthResult {
+  success: boolean;
+  user?: AuthUser;
+  token?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  message?: string;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
+export interface ChangePasswordData {
+  currentPassword: string;
+  newPassword: string;
+}
+
+/**
+ * Unified Authentication Service
+ *
+ * Provides a clean, type-safe interface for all authentication operations
+ * using the unified /api/auth endpoint.
+ */
+export class AuthService {
+  private static readonly BASE_URL = '/api/auth';
+
+  /**
+   * Get stored authentication token
+   */
+  static getToken(): string | null {
+    return localStorage.getItem('auth_token');
+  }
+
+  /**
+   * Get stored refresh token
+   */
+  static getRefreshToken(): string | null {
+    return localStorage.getItem('refresh_token');
+  }
+
+  /**
+   * Store authentication tokens
+   */
+  static setTokens(token: string, refreshToken?: string): void {
+    localStorage.setItem('auth_token', token);
+    if (refreshToken) {
+      localStorage.setItem('refresh_token', refreshToken);
+    }
+  }
+
+  /**
+   * Clear all stored authentication data
+   */
+  static clearTokens(): void {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_data');
+  }
+
+  /**
+   * Get stored user data
+   */
+  static getUser(): AuthUser | null {
+    const userData = localStorage.getItem('user_data');
+    return userData ? JSON.parse(userData) : null;
+  }
+
+  /**
+   * Store user data
+   */
+  static setUser(user: AuthUser): void {
+    localStorage.setItem('user_data', JSON.stringify(user));
+  }
+
+  /**
+   * Check if user is currently authenticated
+   */
+  static isAuthenticated(): boolean {
+    const token = this.getToken();
+    if (!token) return false;
+
+    // TODO: Add token expiration check
+    // For now, just check if token exists
+    return true;
+  }
+
+  /**
+   * Make authenticated API request
+   */
+  private static async makeRequest(action: string, data?: any): Promise<AuthResult> {
+    try {
+      const response = await fetch(`${this.BASE_URL}?action=${action}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.getToken() && { Authorization: `Bearer ${this.getToken()}` }),
+        },
+        body: JSON.stringify(data || {}),
+      });
+
+      const result = await response.json();
+
+      // Store tokens and user data on successful auth
+      if (result.success && result.token) {
+        this.setTokens(result.token, result.refreshToken);
+        if (result.user) {
+          this.setUser(result.user);
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error(`Auth ${action} error:`, error);
+      return {
+        success: false,
+        message: 'Network error or server unavailable',
+      };
+    }
+  }
+
+  /**
+   * Login with email and password
+   */
+  static async login(email: string, password: string): Promise<AuthResult> {
+    return this.makeRequest('login', { email, password });
+  }
+
+  /**
+   * Register new user account
+   */
+  static async register(data: RegisterData): Promise<AuthResult> {
+    return this.makeRequest('register', data);
+  }
+
+  /**
+   * Refresh authentication token
+   */
+  static async refreshToken(): Promise<AuthResult> {
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) {
+      return {
+        success: false,
+        message: 'No refresh token available',
+      };
+    }
+
+    return this.makeRequest('refresh', { refreshToken });
+  }
+
+  /**
+   * Logout current user
+   */
+  static async logout(): Promise<AuthResult> {
+    const token = this.getToken();
+    const result = await this.makeRequest('logout', { token });
+
+    // Clear local storage regardless of server response
+    this.clearTokens();
+
+    return result;
+  }
+
+  /**
+   * Request password reset
+   */
+  static async forgotPassword(email: string): Promise<AuthResult> {
+    return this.makeRequest('forgot-password', { email });
+  }
+
+  /**
+   * Reset password with token
+   */
+  static async resetPassword(token: string, newPassword: string): Promise<AuthResult> {
+    return this.makeRequest('reset-password', { token, newPassword });
+  }
+
+  /**
+   * Change current user's password
+   */
+  static async changePassword(currentPassword: string, newPassword: string): Promise<AuthResult> {
+    return this.makeRequest('change-password', { currentPassword, newPassword });
+  }
+
+  /**
+   * Auto-refresh token when it's about to expire
+   */
+  static async autoRefreshToken(): Promise<boolean> {
+    try {
+      const result = await this.refreshToken();
+      return result.success;
+    } catch (error) {
+      console.error('Auto refresh failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Setup automatic token refresh
+   */
+  static setupTokenRefresh(): void {
+    // Refresh token every 50 minutes (assuming 1-hour expiration)
+    setInterval(async () => {
+      if (this.isAuthenticated()) {
+        const refreshed = await this.autoRefreshToken();
+        if (!refreshed) {
+          console.warn('Token refresh failed, user may need to re-login');
+          // Optionally redirect to login page
+        }
+      }
+    }, 50 * 60 * 1000); // 50 minutes
+  }
+}
+
+/**
+ * Authentication Hook for React (optional)
+ *
+ * Example usage in React components:
+ *
+ * const { user, login, logout, isLoading } = useAuth();
+ */
+export function useAuth() {
+  // This would be implemented with React hooks
+  // For now, providing the interface structure
+
+  return {
+    user: AuthService.getUser(),
+    isAuthenticated: AuthService.isAuthenticated(),
+    login: AuthService.login,
+    logout: AuthService.logout,
+    register: AuthService.register,
+    changePassword: AuthService.changePassword,
+    // Add loading states and error handling as needed
+  };
+}
+
+/**
+ * Authentication Guard for Route Protection
+ *
+ * Example usage:
+ *
+ * <AuthGuard requiredRole="admin">
+ *   <AdminPanel />
+ * </AuthGuard>
+ */
+export interface AuthGuardProps {
+  children: React.ReactNode;
+  requiredRole?: string;
+  redirectTo?: string;
+}
+
+export function AuthGuard({ children, requiredRole, redirectTo = '/login' }: AuthGuardProps) {
+  const user = AuthService.getUser();
+  const isAuthenticated = AuthService.isAuthenticated();
+
+  if (!isAuthenticated) {
+    // Redirect to login page
+    window.location.href = redirectTo;
+    return null;
+  }
+
+  if (requiredRole && user?.role !== requiredRole) {
+    // User doesn't have required role
+    return <div>Access denied. Required role: {requiredRole}</div>;
+  }
+
+  return <>{children}</>;
+}
+
+/**
+ * HTTP Interceptor for automatic token attachment
+ *
+ * Automatically adds authentication headers to requests
+ */
+export function setupAuthInterceptor() {
+  // This would integrate with your HTTP client (axios, fetch, etc.)
+  // Example for fetch:
+
+  const originalFetch = window.fetch;
+
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const token = AuthService.getToken();
+
+    if (token && init?.headers) {
+      const headers = new Headers(init.headers);
+      headers.set('Authorization', `Bearer ${token}`);
+      init.headers = headers;
+    }
+
+    const response = await originalFetch(input, init);
+
+    // Handle 401 responses by attempting token refresh
+    if (response.status === 401 && token) {
+      const refreshed = await AuthService.autoRefreshToken();
+      if (refreshed) {
+        // Retry the original request with new token
+        const newToken = AuthService.getToken();
+        if (newToken && init?.headers) {
+          const headers = new Headers(init.headers);
+          headers.set('Authorization', `Bearer ${newToken}`);
+          init.headers = headers;
+          return originalFetch(input, init);
+        }
+      } else {
+        // Refresh failed, redirect to login
+        AuthService.clearTokens();
+        window.location.href = '/login';
+      }
+    }
+
+    return response;
+  };
+}
+
+// Initialize token refresh on service load
+AuthService.setupTokenRefresh();

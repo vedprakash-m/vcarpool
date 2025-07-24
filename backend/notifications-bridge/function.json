@@ -1,0 +1,13 @@
+{
+  "bindings": [
+    {
+      "type": "serviceBusTrigger",
+      "direction": "in",
+      "name": "notification",
+      "topicName": "notifications",
+      "subscriptionName": "webpubsub-bridge",
+      "connection": "SERVICE_BUS_CONNECTION"
+    }
+  ],
+  "scriptFile": "../dist/notifications-bridge/index.js"
+}

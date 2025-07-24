@@ -1,0 +1,11 @@
+{
+  "name": "carpool-health-fix",
+  "version": "1.0.0",
+  "description": "Minimal health check function",
+  "main": "index.js",
+  "engines": {
+    "node": "~18"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

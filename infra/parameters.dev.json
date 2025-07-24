@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "value": "carpool"
+    },
+    "environmentName": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "cosmosDbAccountName": {
+      "value": "carpool-cosmos-dev"
+    },
+    "storageAccountName": {
+      "value": "carpoolsadev"
+    },
+    "keyVaultName": {
+      "value": "carpool-kv-dev"
+    }
+  }
+}

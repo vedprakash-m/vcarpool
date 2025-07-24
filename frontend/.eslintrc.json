@@ -1,0 +1,26 @@
+{
+  "root": true,
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "no-console": "off",
+    "prefer-const": "off",
+    "react/no-unescaped-entities": "off",
+    "react/display-name": "off",
+    "react-hooks/exhaustive-deps": "off",
+    "@next/next/no-img-element": "off",
+    "import/no-anonymous-default-export": "off"
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/__tests__/**/*.{ts,tsx}",
+        "**/*.test.{ts,tsx}",
+        "**/*.spec.{ts,tsx}"
+      ],
+      "rules": {
+        "react/display-name": "off",
+        "no-console": "off"
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+# Playwright Test Runner Dockerfile
+FROM mcr.microsoft.com/playwright:v1.45.0-focal
+
+WORKDIR /app
+
+# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs
+
+# Copy package files for E2E dependencies
+COPY package*.json ./
+COPY e2e/package.json ./e2e/
+COPY playwright.config.ts ./
+
+# Install dependencies
+RUN npm ci
+RUN cd e2e && npm ci
+
+# Install Playwright browsers
+RUN npx playwright install
+
+# Copy E2E test files
+COPY e2e/ ./e2e/
+
+# Set working directory for tests
+WORKDIR /app/e2e
+
+# Default command to run tests
+CMD ["npm", "run", "test:e2e:ci"]

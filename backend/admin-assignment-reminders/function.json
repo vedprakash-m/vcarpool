@@ -1,0 +1,24 @@
+{
+  "bindings": [
+    {
+      "name": "reminderTimer",
+      "type": "timerTrigger",
+      "direction": "in",
+      "schedule": "0 */15 * * * *"
+    },
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["post", "options"],
+      "route": "v1/assignments/send-reminders"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ],
+  "scriptFile": "../dist/admin-assignment-reminders/index.js"
+}

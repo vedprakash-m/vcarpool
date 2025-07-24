@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🚀 Running optimized pre-push validation..."
+
+# Check if FAST_PUSH environment variable is set for ultra-fast mode
+if [ "$FAST_PUSH" = "1" ]; then
+    echo "⚡ Using ultra-fast mode (set by FAST_PUSH=1)"
+    ./scripts/pre-push-ultra-fast.sh || {
+        echo "❌ Ultra-fast validation failed"
+        exit 1
+    }
+else
+    echo "🔍 Running standard optimized validation..."
+    ./scripts/pre-push-optimized.sh || {
+        echo "❌ Optimized validation failed"
+        exit 1
+    }
+fi
+
+echo "✅ Pre-push validation passed!"

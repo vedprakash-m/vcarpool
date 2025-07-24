@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Registration Form Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .test-case {
+        margin: 20px 0;
+        padding: 20px;
+        border: 1px solid #ddd;
+      }
+      .success {
+        border-color: green;
+        background-color: #f0fff0;
+      }
+      .error {
+        border-color: red;
+        background-color: #fff0f0;
+      }
+      .info {
+        border-color: blue;
+        background-color: #f0f8ff;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        cursor: pointer;
+      }
+      input,
+      select {
+        width: 200px;
+        padding: 5px;
+        margin: 5px;
+      }
+      form {
+        margin: 10px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Carpool Registration Form Debugging</h1>
+
+      <div class="test-case info">
+        <h2>Registration Form Test</h2>
+        <p>
+          Testing the registration form functionality with Tesla STEM High
+          School and grades 8th-12th
+        </p>
+        <button
+          onclick="window.open('http://localhost:3003/register', '_blank')"
+        >
+          Open Registration Form
+        </button>
+      </div>
+
+      <div class="test-case info">
+        <h2>Service Worker Test</h2>
+        <p>Testing service worker registration and PWA manifest</p>
+        <button onclick="testServiceWorker()">Test Service Worker</button>
+        <div id="sw-result"></div>
+      </div>
+
+      <div class="test-case info">
+        <h2>Form Validation Test</h2>
+        <p>Testing form validation with sample data</p>
+        <form id="test-form">
+          <h3>Family Information</h3>
+          <input
+            type="text"
+            placeholder="Family Name"
+            id="familyName"
+            value="The Johnson Family"
+          />
+
+          <h3>Parent Information</h3>
+          <input
+            type="text"
+            placeholder="First Name"
+            id="parentFirstName"
+            value="John"
+          />
+          <input
+            type="text"
+            placeholder="Last Name"
+            id="parentLastName"
+            value="Johnson"
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            id="parentEmail"
+            value="john.johnson@example.com"
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            id="parentPassword"
+            value="password123"
+          />
+
+          <h3>Child Information</h3>
+          <input
+            type="text"
+            placeholder="Child First Name"
+            id="childFirstName"
+            value="Emma"
+          />
+          <input
+            type="text"
+            placeholder="Child Last Name"
+            id="childLastName"
+            value="Johnson"
+          />
+          <select id="childGrade">
+            <option value="">Select Grade</option>
+            <option value="8th Grade">8th Grade</option>
+            <option value="9th Grade">9th Grade</option>
+            <option value="10th Grade">10th Grade</option>
+            <option value="11th Grade">11th Grade</option>
+            <option value="12th Grade">12th Grade</option>
+          </select>
+          <select id="childSchool">
+            <option value="">Select School</option>
+            <option value="Tesla STEM High School">
+              Tesla STEM High School
+            </option>
+          </select>
+
+          <br /><br />
+          <button type="button" onclick="validateForm()">
+            Validate Form Data
+          </button>
+        </form>
+        <div id="validation-result"></div>
+      </div>
+
+      <div class="test-case info">
+        <h2>API Connection Test</h2>
+        <p>Testing connection to backend API</p>
+        <button onclick="testAPIConnection()">Test API Connection</button>
+        <div id="api-result"></div>
+      </div>
+    </div>
+
+    <script>
+      function testServiceWorker() {
+        const resultDiv = document.getElementById('sw-result');
+
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker
+            .register('/sw.js')
+            .then(registration => {
+              resultDiv.innerHTML =
+                '<div style="color: green;">✓ Service Worker registered successfully</div>';
+
+              // Test manifest
+              fetch('/manifest.json')
+                .then(response => response.json())
+                .then(manifest => {
+                  resultDiv.innerHTML +=
+                    '<div style="color: green;">✓ PWA Manifest loaded successfully</div>';
+                  resultDiv.innerHTML +=
+                    '<div>App Name: ' + manifest.name + '</div>';
+                })
+                .catch(error => {
+                  resultDiv.innerHTML +=
+                    '<div style="color: red;">✗ PWA Manifest error: ' +
+                    error.message +
+                    '</div>';
+                });
+            })
+            .catch(error => {
+              resultDiv.innerHTML =
+                '<div style="color: red;">✗ Service Worker registration failed: ' +
+                error.message +
+                '</div>';
+            });
+        } else {
+          resultDiv.innerHTML =
+            '<div style="color: orange;">⚠ Service Workers not supported</div>';
+        }
+      }
+
+      function validateForm() {
+        const resultDiv = document.getElementById('validation-result');
+        const formData = {
+          familyName: document.getElementById('familyName').value,
+          parent: {
+            firstName: document.getElementById('parentFirstName').value,
+            lastName: document.getElementById('parentLastName').value,
+            email: document.getElementById('parentEmail').value,
+            password: document.getElementById('parentPassword').value,
+          },
+          children: [
+            {
+              firstName: document.getElementById('childFirstName').value,
+              lastName: document.getElementById('childLastName').value,
+              grade: document.getElementById('childGrade').value,
+              school: document.getElementById('childSchool').value,
+            },
+          ],
+        };
+
+        // Basic validation
+        let errors = [];
+        if (!formData.familyName) errors.push('Family name is required');
+        if (!formData.parent.firstName)
+          errors.push('Parent first name is required');
+        if (!formData.parent.lastName)
+          errors.push('Parent last name is required');
+        if (!formData.parent.email) errors.push('Parent email is required');
+        if (!formData.parent.password || formData.parent.password.length < 8)
+          errors.push('Password must be at least 8 characters');
+        if (!formData.children[0].firstName)
+          errors.push('Child first name is required');
+        if (!formData.children[0].lastName)
+          errors.push('Child last name is required');
+        if (!formData.children[0].grade) errors.push('Child grade is required');
+        if (!formData.children[0].school)
+          errors.push('Child school is required');
+
+        if (errors.length === 0) {
+          resultDiv.innerHTML =
+            '<div style="color: green;">✓ Form validation passed</div>';
+          resultDiv.innerHTML +=
+            '<pre>' + JSON.stringify(formData, null, 2) + '</pre>';
+        } else {
+          resultDiv.innerHTML =
+            '<div style="color: red;">✗ Form validation failed:</div>';
+          errors.forEach(error => {
+            resultDiv.innerHTML +=
+              '<div style="color: red;">• ' + error + '</div>';
+          });
+        }
+      }
+
+      function testAPIConnection() {
+        const resultDiv = document.getElementById('api-result');
+        resultDiv.innerHTML = '<div>Testing API connection...</div>';
+
+        // Test if backend is running
+        fetch('/api/health')
+          .then(response => {
+            if (response.ok) {
+              resultDiv.innerHTML =
+                '<div style="color: green;">✓ Backend API is responding</div>';
+            } else {
+              resultDiv.innerHTML =
+                '<div style="color: orange;">⚠ Backend API returned status: ' +
+                response.status +
+                '</div>';
+            }
+          })
+          .catch(error => {
+            resultDiv.innerHTML =
+              '<div style="color: red;">✗ Backend API connection failed: ' +
+              error.message +
+              '</div>';
+            resultDiv.innerHTML +=
+              '<div style="color: blue;">ℹ This is expected if backend is not running locally</div>';
+          });
+      }
+
+      // Auto-run tests on page load
+      window.addEventListener('load', function () {
+        console.log('Registration Form Test Page Loaded');
+        testServiceWorker();
+      });
+    </script>
+  </body>
+</html>

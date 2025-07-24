@@ -1,0 +1,38 @@
+<step title="BackgroundTrace" date="2025-07-16T03:28:56.706" instance="ebec0f" url="/api/zipdeploy" method="POST" >
+  <step title="Updating shutdown sentinel last write time" date="2025-07-16T03:28:56.769" SemaphoreCount="7" /><!-- duration: 31ms -->
+  <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; acquired" date="2025-07-16T03:28:56.816" /><!-- duration: 31ms -->
+  <step title="Creating temporary deployment" date="2025-07-16T03:28:56.863" /><!-- duration: 160ms -->
+  <step title="Performing fetch based deployment" date="2025-07-16T03:28:57.038" >
+    <step title="Fetching changes." date="2025-07-16T03:28:57.272" /><!-- duration: 31ms -->
+    <step title="Starting LocalZipHandler" date="2025-07-16T03:28:57.335" /><!-- duration: 16ms -->
+    <step title="Starting ExtractTriggers" date="2025-07-16T03:28:57.382" /><!-- duration: 31ms -->
+    <step title="Before sending BuildRequestReceived status to /api/updatedeploystatus" date="2025-07-16T03:28:57.444" /><!-- duration: 31ms -->
+    <step title="DeploymentManager.Deploy(id:cc70959c2c2e492296438aacf8d42266)" date="2025-07-16T03:28:57.491" >
+      <step title="Collecting changeset information" date="2025-07-16T03:28:57.538" /><!-- duration: 172ms -->
+      <step title="Updating submodules" date="2025-07-16T03:28:57.741" >
+        <step title="Updating submodules." date="2025-07-16T03:28:57.944" /><!-- duration: 16ms -->
+      </step><!-- duration: 250ms -->
+      <step title="Preparing deployment for commit id &apos;cc70959c2c&apos;." date="2025-07-16T03:28:58.241" /><!-- duration: 16ms -->
+      <step title="Determining deployment builder" date="2025-07-16T03:28:58.444" >
+        <step title="Builder is RunFromZipSiteBuilder" date="2025-07-16T03:28:58.475" /><!-- duration: 16ms -->
+      </step><!-- duration: 78ms -->
+      <step title="Copying SSH keys" date="2025-07-16T03:28:58.616" /><!-- duration: 31ms -->
+      <step title="Building" date="2025-07-16T03:28:58.678" >
+        <step title="Skipping build. Project type: Run-From-Zip" date="2025-07-16T03:28:58.882" /><!-- duration: 16ms -->
+        <step title="Skipping post build. Project type: Run-From-Zip" date="2025-07-16T03:28:59.132" /><!-- duration: 31ms -->
+        <step title="Triggering recycle (preview mode disabled)." date="2025-07-16T03:28:59.413" /><!-- duration: 16ms -->
+        <step title="Ignoring FS watcher based recycle request as this is a classic Windows app." date="2025-07-16T03:28:59.460" /><!-- duration: 15ms -->
+        <step title="Deployment successful. DEPLOYMENTINFO: deploymentPath = Functions App ZipDeploy. Run from package., deployer = az_cli_functions, os = windows, sku = Dynamic, language = node, siteName = carpool-api-prod, slotName = Production, siteHostName = carpool-api-prod.azurewebsites.net, deploymentStatus = Success" date="2025-07-16T03:28:59.681" /><!-- duration: 31ms -->
+        <step title="Purge deployment items" date="2025-07-16T03:29:00.545" >
+          <step title="Remove 3d1a4192f, Success, received at 7/14/2025 1:17:23 AM" date="2025-07-16T03:29:00.842" /><!-- duration: 31ms -->
+        </step><!-- duration: 375ms -->
+      </step><!-- duration: 2367ms -->
+    </step><!-- duration: 3585ms -->
+    <step title="Cleaning up temp files" date="2025-07-16T03:29:01.108" /><!-- duration: 16ms -->
+    <step title="Updating C:\home\data\SitePackages\packagename.txt with deployment 20250716032855.zip" date="2025-07-16T03:29:01.154" /><!-- duration: 78ms -->
+    <step title="Begin HttpPost https://carpool-api-prod.scm.azurewebsites.net/operations/settriggers, x-ms-request-id: f30f18d8-61f4-11f0-8306-5effe1ef5dcf" date="2025-07-16T03:29:01.295" /><!-- duration: 31ms -->
+    <step title="End HttpPost, status: OK" date="2025-07-16T03:29:01.499" /><!-- duration: 31ms -->
+    <step title="Scheduling background sync triggers after delay" date="2025-07-16T03:29:01.562" /><!-- duration: 15ms -->
+  </step><!-- duration: 4805ms -->
+  <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; released" date="2025-07-16T03:29:01.889" /><!-- duration: 16ms -->
+</step><!-- duration: 5261ms -->

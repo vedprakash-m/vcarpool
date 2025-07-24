@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit validation..."
+
+# Quick lint and type check only for pre-commit
+echo "🚀 Running fast pre-commit checks..."
+./scripts/pre-commit-fast.sh || {
+    echo "❌ Pre-commit validation failed"
+    exit 1
+}
+
+echo "✅ Pre-commit validation passed!"

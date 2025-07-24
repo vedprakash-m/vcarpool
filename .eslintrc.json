@@ -1,0 +1,31 @@
+{
+  "root": true,
+  "env": {
+    "es2022": true,
+    "node": true,
+    "jest": true
+  },
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": [
+      "./tsconfig.json",
+      "./backend/tsconfig.json",
+      "./frontend/tsconfig.json"
+    ],
+    "sourceType": "module"
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/recommended-requiring-type-checking",
+    "plugin:security/recommended",
+    "prettier"
+  ],
+  "plugins": ["@typescript-eslint", "prettier", "security"],
+  "rules": {
+    "prettier/prettier": ["error"],
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/explicit-module-boundary-types": "off"
+  },
+  "ignorePatterns": ["dist/**", "node_modules/**"]
+}

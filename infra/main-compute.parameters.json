@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "value": "carpool"
+    },
+    "environmentName": {
+      "value": "prod"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "functionAppName": {
+      "value": "carpool-api-prod"
+    },
+    "staticWebAppName": {
+      "value": "carpool-web-prod"
+    },
+    "appInsightsName": {
+      "value": "carpool-insights-prod"
+    },
+    "storageAccountName": {
+      "value": "carpoolsaprod"
+    },
+    "keyVaultName": {
+      "value": "carpool-keyvault"
+    },
+    "databaseResourceGroup": {
+      "value": "carpool-db-rg"
+    },
+    "cosmosDbAccountName": {
+      "value": "carpool-cosmos-prod"
+    }
+  }
+}

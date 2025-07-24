@@ -1,0 +1,98 @@
+# Dockerignore for Carpool Monorepo
+
+# This file controls what gets copied into Docker build contexts
+
+# Development files
+
+.env
+.env.local
+.env.production
+.env.test
+
+# Git
+
+.git
+.gitignore
+
+# Documentation
+
+README.md
+docs/
+CONTRIBUTING.md
+LICENSE
+NOTICE
+
+# IDE
+
+.vscode/
+.idea/
+_.swp
+_.swo
+
+# OS
+
+.DS_Store
+Thumbs.db
+
+# Logs
+
+logs/
+_.log
+npm-debug.log_
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+
+pids/
+_.pid
+_.seed
+\*.pid.lock
+
+# Coverage directory used by tools like istanbul
+
+coverage/
+.nyc_output/
+
+# Dependency directories
+
+node_modules/
+
+# Build outputs (will be built inside Docker)
+
+dist/
+build/
+out/
+.next/
+
+# Test outputs
+
+test-results/
+playwright-report/
+coverage/
+
+# Cache
+
+.npm
+.yarn-cache/
+.cache/
+
+# Temporary files
+
+tmp/
+temp/
+
+# Secrets (these should never be in Docker images)
+
+secrets/
+Confidential/
+
+# Local configuration files that should not be in Docker
+
+local.settings.json
+
+# But allow sample files that should be copied
+
+!local.settings.sample.json
+!.env.sample
+!.env.example

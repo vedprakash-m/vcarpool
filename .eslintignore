@@ -1,0 +1,39 @@
+# Ignore compiled/generated files
+shared/dist/
+**/node_modules/
+**/coverage/
+**/dist/
+**/build/
+
+# Ignore specific problematic files
+e2e/
+backend/phase2-demo/
+shared/src/*.d.ts
+shared/dist/
+shared/src/
+
+# Function directories at root level
+backend/*/
+!backend/src/
+!backend/scripts/
+!backend/*.json
+!backend/*.js
+!backend/*.md
+!backend/*.ts
+
+# Prettier and other generated files
+**/*.d.ts
+
+# Config files
+.eslintrc.*
+jest.config.js
+jest.setup.js
+
+# Backend root files
+backend/index.js
+
+# Frontend debug files
+frontend/debug-*.js
+
+# Scripts with parsing issues
+scripts/validate-dependencies.js

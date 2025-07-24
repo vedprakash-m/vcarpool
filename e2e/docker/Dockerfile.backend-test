@@ -1,0 +1,84 @@
+# Multi-stage Dockerfile for Backend E2E Testing in Monorepo
+# This Dockerfile builds the shared package first, then the backend
+
+# Stage 1: Build shared package
+FROM --platform=linux/amd64 node:20-alpine AS shared-builder
+
+WORKDIR /app
+
+# Copy root package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Copy shared package
+COPY shared/ ./shared/
+
+# Install dependencies and build shared package
+RUN npm ci
+RUN npm run build --workspace=shared
+
+# Stage 2: Build backend
+FROM --platform=linux/amd64 node:20-alpine AS backend-builder
+
+WORKDIR /app
+
+# Copy root package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Copy shared package (source and built artifacts)
+COPY shared/ ./shared/
+COPY --from=shared-builder /app/shared/dist ./shared/dist
+
+# Copy backend source
+COPY backend/ ./backend/
+
+# Install dependencies for the entire monorepo
+RUN npm ci
+
+# Build shared package (in case it wasn't copied properly)
+RUN npm run build --workspace=shared
+
+# Build backend
+RUN cd backend && npm run build
+
+# Stage 3: Production runtime
+FROM --platform=linux/amd64 node:20-alpine AS runtime
+
+WORKDIR /app
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Copy root package files for workspace resolution
+COPY package*.json ./
+
+# Copy shared package (built artifacts only)
+COPY --from=shared-builder /app/shared/dist ./shared/dist
+COPY --from=shared-builder /app/shared/package.json ./shared/package.json
+
+# Copy backend built artifacts and source
+COPY --from=backend-builder /app/backend/dist ./backend/dist
+COPY --from=backend-builder /app/backend/package.json ./backend/package.json
+COPY --from=backend-builder /app/backend/host.json ./backend/host.json
+COPY --from=backend-builder /app/backend/local.settings.sample.json ./backend/local.settings.sample.json
+
+# Create local.settings.json from sample (safe for CI/CD where secrets aren't present)
+RUN echo "Creating local.settings.json from sample template for containerized environment" && \
+    cp ./backend/local.settings.sample.json ./backend/local.settings.json
+
+# Install dependencies including Azure Functions Core Tools
+RUN npm ci
+
+# Set working directory to backend
+WORKDIR /app/backend
+
+# Expose port
+EXPOSE 7071
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:7071/api/health || exit 1
+
+# Start the application
+CMD ["npm", "start"]

@@ -1,0 +1,321 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.36.1.42791",
+      "templateHash": "5139917610498862852"
+    }
+  },
+  "parameters": {
+    "cosmosDbAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Cosmos DB database and containers module - Creates the Cosmos DB database and all containers in an existing Cosmos account"
+      }
+    },
+    "throughput": {
+      "type": "int",
+      "defaultValue": 400
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+      "apiVersion": "2021-10-15",
+      "name": "[format('{0}/{1}', parameters('cosmosDbAccountName'), 'carpool')]",
+      "properties": {
+        "resource": {
+          "id": "carpool"
+        },
+        "options": {
+          "throughput": "[parameters('throughput')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2021-10-15",
+      "name": "[format('{0}/{1}/{2}', parameters('cosmosDbAccountName'), 'carpool', 'users')]",
+      "properties": {
+        "resource": {
+          "id": "users",
+          "partitionKey": {
+            "paths": [
+              "/id"
+            ],
+            "kind": "Hash"
+          },
+          "indexingPolicy": {
+            "indexingMode": "consistent",
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), 'carpool')]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2021-10-15",
+      "name": "[format('{0}/{1}/{2}', parameters('cosmosDbAccountName'), 'carpool', 'trips')]",
+      "properties": {
+        "resource": {
+          "id": "trips",
+          "partitionKey": {
+            "paths": [
+              "/driverId"
+            ],
+            "kind": "Hash"
+          },
+          "indexingPolicy": {
+            "indexingMode": "consistent",
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), 'carpool')]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2021-10-15",
+      "name": "[format('{0}/{1}/{2}', parameters('cosmosDbAccountName'), 'carpool', 'schedules')]",
+      "properties": {
+        "resource": {
+          "id": "schedules",
+          "partitionKey": {
+            "paths": [
+              "/userId"
+            ],
+            "kind": "Hash"
+          },
+          "indexingPolicy": {
+            "indexingMode": "consistent",
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), 'carpool')]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2021-10-15",
+      "name": "[format('{0}/{1}/{2}', parameters('cosmosDbAccountName'), 'carpool', 'swapRequests')]",
+      "properties": {
+        "resource": {
+          "id": "swapRequests",
+          "partitionKey": {
+            "paths": [
+              "/requesterId"
+            ],
+            "kind": "Hash"
+          },
+          "indexingPolicy": {
+            "indexingMode": "consistent",
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), 'carpool')]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2021-10-15",
+      "name": "[format('{0}/{1}/{2}', parameters('cosmosDbAccountName'), 'carpool', 'notifications')]",
+      "properties": {
+        "resource": {
+          "id": "notifications",
+          "partitionKey": {
+            "paths": [
+              "/id"
+            ],
+            "kind": "Hash"
+          },
+          "indexingPolicy": {
+            "indexingMode": "consistent",
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), 'carpool')]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2021-10-15",
+      "name": "[format('{0}/{1}/{2}', parameters('cosmosDbAccountName'), 'carpool', 'messages')]",
+      "properties": {
+        "resource": {
+          "id": "messages",
+          "partitionKey": {
+            "paths": [
+              "/id"
+            ],
+            "kind": "Hash"
+          },
+          "indexingPolicy": {
+            "indexingMode": "consistent",
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), 'carpool')]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2021-10-15",
+      "name": "[format('{0}/{1}/{2}', parameters('cosmosDbAccountName'), 'carpool', 'chats')]",
+      "properties": {
+        "resource": {
+          "id": "chats",
+          "partitionKey": {
+            "paths": [
+              "/id"
+            ],
+            "kind": "Hash"
+          },
+          "indexingPolicy": {
+            "indexingMode": "consistent",
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), 'carpool')]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2021-10-15",
+      "name": "[format('{0}/{1}/{2}', parameters('cosmosDbAccountName'), 'carpool', 'chatParticipants')]",
+      "properties": {
+        "resource": {
+          "id": "chatParticipants",
+          "partitionKey": {
+            "paths": [
+              "/id"
+            ],
+            "kind": "Hash"
+          },
+          "indexingPolicy": {
+            "indexingMode": "consistent",
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), 'carpool')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "cosmosDbName": {
+      "type": "string",
+      "value": "carpool"
+    },
+    "containerNames": {
+      "type": "array",
+      "value": [
+        "users",
+        "trips",
+        "schedules",
+        "swapRequests",
+        "notifications",
+        "messages",
+        "chats",
+        "chatParticipants"
+      ]
+    }
+  }
+}

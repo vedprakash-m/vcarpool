@@ -1,0 +1,52 @@
+<step title="Incoming Request" date="2025-07-14T02:00:33.437" instance="a18602" url="/api/zipdeploy" method="POST" type="request" pid="2936,2,9" Content-Length="3286673" Content-Type="application/zip" Authorization="Bea..." Host="carpool-api-prod.scm.azurewebsites.net" If-Match="*" User-Agent="functions-core-tools/4.0.7512" X-ARR-LOG-ID="5768fc6a-d0ad-44fc-b473-fe1c01612d25" CLIENT-IP="73.181.182.33:60839" X-SITE-DEPLOYMENT-ID="carpool-api-prod" WAS-DEFAULT-HOSTNAME="carpool-api-prod.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.2" X-WAWS-Unencoded-URL="/api/zipdeploy" >
+  <step title="ZipPushDeploy" date="2025-07-14T02:00:33.483" >
+    <step title="Functions App ZipDeploy. Run from package." date="2025-07-14T02:00:33.530" /><!-- duration: 16ms -->
+    <step title="Starting PushDeployAsync" date="2025-07-14T02:00:33.577" /><!-- duration: 16ms -->
+    <step title="Updating shutdown sentinel last write time" date="2025-07-14T02:00:33.671" SemaphoreCount="7" /><!-- duration: 16ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; acquired" date="2025-07-14T02:00:33.749" /><!-- duration: 16ms -->
+    <step title="Saving request content to C:\home\data\SitePackages\20250714020033.zip" date="2025-07-14T02:00:33.796" >
+      <step title="Total 3,286,673 bytes written to C:\home\data\SitePackages\20250714020033.zip" date="2025-07-14T02:00:33.905" /><!-- duration: 16ms -->
+    </step><!-- duration: 234ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; released" date="2025-07-14T02:00:34.046" /><!-- duration: 31ms -->
+    <step title="Deleting shutdown sentinel file" date="2025-07-14T02:00:34.108" SemaphoreCount="8" /><!-- duration: 16ms -->
+    <step title="Starting FetchDeploy" date="2025-07-14T02:00:34.155" /><!-- duration: 16ms -->
+    <step title="Attempting to fetch target branch HEAD" date="2025-07-14T02:00:34.202" /><!-- duration: 16ms -->
+    <step title="Updating shutdown sentinel last write time" date="2025-07-14T02:00:34.265" SemaphoreCount="7" /><!-- duration: 32ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; acquired" date="2025-07-14T02:00:34.327" /><!-- duration: 16ms -->
+    <step title="Performing fetch based deployment" date="2025-07-14T02:00:34.374" >
+      <step title="Creating temporary deployment" date="2025-07-14T02:00:34.390" /><!-- duration: 141ms -->
+      <step title="Fetching changes." date="2025-07-14T02:00:34.733" /><!-- duration: 47ms -->
+      <step title="Starting LocalZipHandler" date="2025-07-14T02:00:34.827" /><!-- duration: 16ms -->
+      <step title="Starting ExtractTriggers" date="2025-07-14T02:00:34.858" /><!-- duration: 16ms -->
+      <step title="None repository commit" date="2025-07-14T02:00:35.124" >
+        <step title="Commit id: 05cdf38321e04b93b1b1ac3c910bf189" date="2025-07-14T02:00:35.140" Message="Created via a push deployment" AuthorName="N/A" AuthorEmail="N/A" /><!-- duration: 16ms -->
+      </step><!-- duration: 47ms -->
+      <step title="Before sending BuildRequestReceived status to /api/updatedeploystatus" date="2025-07-14T02:00:35.202" /><!-- duration: 16ms -->
+      <step title="DeploymentManager.Deploy(id:05cdf38321e04b93b1b1ac3c910bf189)" date="2025-07-14T02:00:35.233" >
+        <step title="Collecting changeset information" date="2025-07-14T02:00:35.265" /><!-- duration: 141ms -->
+        <step title="Updating submodules" date="2025-07-14T02:00:35.452" >
+          <step title="Updating submodules." date="2025-07-14T02:00:35.608" /><!-- duration: 16ms -->
+        </step><!-- duration: 203ms -->
+        <step title="Preparing deployment for commit id &apos;05cdf38321&apos;." date="2025-07-14T02:00:35.843" /><!-- duration: 16ms -->
+        <step title="Determining deployment builder" date="2025-07-14T02:00:36.077" >
+          <step title="Builder is RunFromZipSiteBuilder" date="2025-07-14T02:00:36.093" /><!-- duration: 31ms -->
+        </step><!-- duration: 62ms -->
+        <step title="Copying SSH keys" date="2025-07-14T02:00:36.202" /><!-- duration: 31ms -->
+        <step title="Building" date="2025-07-14T02:00:36.265" >
+          <step title="Skipping build. Project type: Run-From-Zip" date="2025-07-14T02:00:36.452" /><!-- duration: 16ms -->
+          <step title="Skipping post build. Project type: Run-From-Zip" date="2025-07-14T02:00:36.702" /><!-- duration: 31ms -->
+          <step title="Triggering recycle (preview mode disabled)." date="2025-07-14T02:00:36.937" /><!-- duration: 16ms -->
+          <step title="Ignoring FS watcher based recycle request as this is a classic Windows app." date="2025-07-14T02:00:36.999" /><!-- duration: 31ms -->
+          <step title="Deployment successful. DEPLOYMENTINFO: deploymentPath = Functions App ZipDeploy. Run from package., deployer = ZipDeploy, os = windows, sku = Dynamic, language = node, siteName = carpool-api-prod, slotName = Production, siteHostName = carpool-api-prod.azurewebsites.net, deploymentStatus = Success" date="2025-07-14T02:00:37.249" /><!-- duration: 16ms -->
+        </step><!-- duration: 1469ms -->
+      </step><!-- duration: 2531ms -->
+      <step title="Cleaning up temp files" date="2025-07-14T02:00:37.780" /><!-- duration: 16ms -->
+      <step title="Updating C:\home\data\SitePackages\packagename.txt with deployment 20250714020033.zip" date="2025-07-14T02:00:37.827" /><!-- duration: 47ms -->
+      <step title="Begin HttpPost https://carpool-api-prod.scm.azurewebsites.net/operations/settriggers, x-ms-request-id: 5768fc6a-d0ad-44fc-b473-fe1c01612d25" date="2025-07-14T02:00:37.937" /><!-- duration: 31ms -->
+      <step title="End HttpPost, status: OK" date="2025-07-14T02:00:38.108" /><!-- duration: 16ms -->
+      <step title="Scheduling background sync triggers after delay" date="2025-07-14T02:00:38.155" /><!-- duration: 16ms -->
+    </step><!-- duration: 4000ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; released" date="2025-07-14T02:00:38.405" /><!-- duration: 31ms -->
+  </step><!-- duration: 4984ms -->
+  <step title="Outgoing response" date="2025-07-14T02:00:38.483" type="response" statusCode="200" statusText="OK" Server="Microsoft-IIS/10.0" x-ms-request-id="5768fc6a-d0ad-44fc-b473-fe1c01612d25" Cache-Control="private" X-AspNet-Version="4.0.30319" /><!-- duration: 16ms -->
+</step><!-- duration: 5094ms -->

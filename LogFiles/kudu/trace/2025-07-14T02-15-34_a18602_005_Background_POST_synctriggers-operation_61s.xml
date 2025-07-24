@@ -1,0 +1,8 @@
+<step title="BackgroundTrace" date="2025-07-14T02:15:34.665" instance="a18602" url="synctriggers-operation" method="POST" >
+  <step title="Updating shutdown sentinel last write time" date="2025-07-14T02:15:34.681" SemaphoreCount="6" /><!-- duration: 16ms -->
+  <step title="Delaying &apos;00:01:00&apos; for Functions site to restart." date="2025-07-14T02:15:34.712" /><!-- duration: 31ms -->
+  <step title="Begin HttpPost https://carpool-api-prod.azurewebsites.net/admin/host/synctriggers, x-ms-request-id: ce4d8cf7-96bd-4b0e-b17e-48f35b067912" date="2025-07-14T02:16:34.786" /><!-- duration: 47ms -->
+  <step title="End HttpPost, status: OK" date="2025-07-14T02:16:35.333" /><!-- duration: 31ms -->
+  <step title="Syncing function triggers by calling the functions runtime site successful." date="2025-07-14T02:16:35.380" /><!-- duration: 16ms -->
+  <step title="Deleting shutdown sentinel file" date="2025-07-14T02:16:35.427" SemaphoreCount="8" /><!-- duration: 16ms -->
+</step><!-- duration: 60793ms -->
