@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import {
-  AirplaneIcon,
+  PaperAirplaneIcon,
   CalendarDaysIcon,
   UserGroupIcon,
   ExclamationTriangleIcon,
@@ -245,7 +245,7 @@ export default function TravelingParentSupport({
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-blue-900">
-              <AirplaneIcon className="h-5 w-5" />
+              <PaperAirplaneIcon className="h-5 w-5" />
               <span>Currently Traveling</span>
             </CardTitle>
           </CardHeader>
