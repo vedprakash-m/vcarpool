@@ -55,7 +55,7 @@ const nextConfig = {
       'c5118183-d391-4a86-ad73-29162678a5f0',
     NEXT_PUBLIC_ENTRA_AUTHORITY:
       process.env.NEXT_PUBLIC_ENTRA_AUTHORITY ||
-      'https://login.microsoftonline.com/vedprakashmoutlook.onmicrosoft.com',
+      'https://login.microsoftonline.com/common',
   },
 
   experimental: {

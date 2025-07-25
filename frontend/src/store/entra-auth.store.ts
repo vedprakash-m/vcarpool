@@ -13,7 +13,7 @@ const msalConfig = {
     clientId: process.env.NEXT_PUBLIC_ENTRA_CLIENT_ID || '',
     authority:
       process.env.NEXT_PUBLIC_ENTRA_AUTHORITY ||
-      'https://login.microsoftonline.com/vedprakashmoutlook.onmicrosoft.com',
+      'https://login.microsoftonline.com/common',
     redirectUri: typeof window !== 'undefined' ? `${window.location.origin}/login` : '',
   },
   cache: {

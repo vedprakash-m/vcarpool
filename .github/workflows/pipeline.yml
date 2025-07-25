@@ -454,7 +454,7 @@ jobs:
             export NEXT_PUBLIC_BASE_URL="https://carpool.vedprakash.net"
             export NEXT_PUBLIC_API_BASE_URL="https://carpool.vedprakash.net/api"
             export NEXT_PUBLIC_ENTRA_CLIENT_ID="c5118183-d391-4a86-ad73-29162678a5f0"
-            export NEXT_PUBLIC_ENTRA_AUTHORITY="https://login.microsoftonline.com/vedprakashmoutlook.onmicrosoft.com"
+            export NEXT_PUBLIC_ENTRA_AUTHORITY="https://login.microsoftonline.com/common"
             
             echo "Environment variables for build:"
             echo "NEXT_PUBLIC_ENABLE_LEGACY_AUTH=$NEXT_PUBLIC_ENABLE_LEGACY_AUTH"
