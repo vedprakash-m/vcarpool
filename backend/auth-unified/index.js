@@ -1,35 +1,47 @@
+// Helper function to create consistent responses with CORS headers
+function createResponse(status, body) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-Token',
+    'Access-Control-Max-Age': '86400',
+    'Content-Type': 'application/json'
+  };
+
+  return {
+    status: status,
+    headers: corsHeaders,
+    body: JSON.stringify(body)
+  };
+}
+
 module.exports = function (context, req) {
   context.log('Unified authentication endpoint called');
+
+  // Enhanced CORS headers for all responses
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-Token',
+    'Access-Control-Max-Age': '86400',
+    'Content-Type': 'application/json'
+  };
 
   try {
     context.log('Processing request method:', req.method);
 
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
-      context.res = {
-        status: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        },
-      };
+      context.res = createResponse(200, '');
       context.done();
       return;
     }
 
     if (req.method !== 'POST') {
-      context.res = {
-        status: 405,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          success: false,
-          message: 'Method not allowed. Use POST.',
-        }),
-      };
+      context.res = createResponse(405, {
+        success: false,
+        message: 'Method not allowed. Use POST.',
+      });
       context.done();
       return;
     }
@@ -39,26 +51,20 @@ module.exports = function (context, req) {
     context.log('Processing action:', action);
 
     if (!action) {
-      context.res = {
-        status: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          success: false,
-          message: 'Action parameter is required. Use ?action=login, ?action=register, etc.',
-          supportedActions: [
-            'login',
-            'register',
-            'refresh',
-            'logout',
-            'forgot-password',
-            'reset-password',
-            'change-password',
-          ],
-        }),
-      };
+      context.res = createResponse(400, {
+        success: false,
+        message: 'Action parameter is required. Use ?action=login, ?action=register, etc.',
+        supportedActions: [
+          'login',
+          'register',
+          'refresh',
+          'logout',
+          'forgot-password',
+          'reset-password',
+          'change-password',
+          'entra-login',
+        ],
+      });
       context.done();
       return;
     }
@@ -70,17 +76,10 @@ module.exports = function (context, req) {
         requestData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       } catch (parseError) {
         context.log.error('JSON parse error:', parseError);
-        context.res = {
-          status: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            success: false,
-            message: 'Invalid JSON in request body',
-          }),
-        };
+        context.res = createResponse(400, {
+          success: false,
+          message: 'Invalid JSON in request body',
+        });
         context.done();
         return;
       }
@@ -121,44 +120,31 @@ module.exports = function (context, req) {
         break;
 
       default:
-        context.res = {
-          status: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            success: false,
-            message: `Unknown action: ${action}`,
-            supportedActions: [
-              'login',
-              'register',
-              'refresh',
-              'logout',
-              'forgot-password',
-              'reset-password',
-              'change-password',
-            ],
-          }),
-        };
+        context.res = createResponse(400, {
+          success: false,
+          message: `Unknown action: ${action}`,
+          supportedActions: [
+            'login',
+            'register',
+            'refresh',
+            'logout',
+            'forgot-password',
+            'reset-password',
+            'change-password',
+            'entra-login',
+          ],
+        });
         context.done();
         break;
     }
   } catch (error) {
     context.log.error('Error in auth endpoint:', error);
 
-    context.res = {
-      status: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        success: false,
-        message: 'Internal server error',
-        error: error.message,
-      }),
-    };
+    context.res = createResponse(500, {
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
     context.done();
   }
 };
@@ -441,17 +427,10 @@ function handleEntraLogin(context, requestData) {
   const { authProvider, accessToken } = requestData;
 
   if (!accessToken) {
-    context.res = {
-      status: 400,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        success: false,
-        message: 'Access token is required for Entra authentication',
-      }),
-    };
+    context.res = createResponse(400, {
+      success: false,
+      message: 'Access token is required for Entra authentication',
+    });
     context.done();
     return;
   }
@@ -486,22 +465,15 @@ function handleEntraLogin(context, requestData) {
     ] : ['trip_participation', 'preference_submission']
   };
 
-  context.res = {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Content-Type': 'application/json',
+  context.res = createResponse(200, {
+    success: true,
+    message: 'Entra authentication successful',
+    data: {
+      user: mockUser,
+      token: 'mock-jwt-token',
+      refreshToken: 'mock-refresh-token',
     },
-    body: JSON.stringify({
-      success: true,
-      message: 'Entra authentication successful',
-      data: {
-        user: mockUser,
-        token: 'mock-jwt-token',
-        refreshToken: 'mock-refresh-token',
-      },
-      action: 'entra-login',
-    }),
-  };
+    action: 'entra-login',
+  });
   context.done();
 }
