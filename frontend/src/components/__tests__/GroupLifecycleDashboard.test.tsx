@@ -285,8 +285,10 @@ describe('GroupLifecycleDashboard', () => {
     render(<GroupLifecycleDashboard />);
 
     await waitFor(() => {
-      expect(screen.getByText('Active')).toBeInTheDocument();
-      expect(screen.getByText('Pending Reactivation')).toBeInTheDocument();
+      const activeElements = screen.getAllByText('Active');
+      expect(activeElements.length).toBeGreaterThan(0);
+      const pendingElements = screen.getAllByText('Pending Reactivation');
+      expect(pendingElements.length).toBeGreaterThan(0);
     });
   });
 
