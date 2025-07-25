@@ -110,6 +110,6 @@ Element.prototype.scrollIntoView = jest.fn();
 
 // Mock environment variables
 process.env.NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3001';
-process.env.NEXT_PUBLIC_ENABLE_LEGACY_AUTH = 'true';
+process.env.NEXT_PUBLIC_ENABLE_LEGACY_AUTH = 'false';
 process.env.NEXT_PUBLIC_ENABLE_ENTRA_AUTH = 'true';
 process.env.NEXT_PUBLIC_ENVIRONMENT = 'test';

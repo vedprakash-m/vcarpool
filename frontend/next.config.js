@@ -42,7 +42,7 @@ const nextConfig = {
 
     // Authentication configuration - explicitly include these
     NEXT_PUBLIC_ENABLE_LEGACY_AUTH:
-      process.env.NEXT_PUBLIC_ENABLE_LEGACY_AUTH || 'true',
+      process.env.NEXT_PUBLIC_ENABLE_LEGACY_AUTH || 'false',
     NEXT_PUBLIC_ENABLE_ENTRA_AUTH:
       process.env.NEXT_PUBLIC_ENABLE_ENTRA_AUTH || 'true',
     NEXT_PUBLIC_BASE_URL:
