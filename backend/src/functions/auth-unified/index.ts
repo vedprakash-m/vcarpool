@@ -26,12 +26,15 @@ export async function authUnified(
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
   context.log('Unified authentication endpoint called');
+  context.log(`Method: ${request.method}`);
+  context.log(`URL: ${request.url}`);
 
   try {
     const method = request.method;
 
     // Handle preflight OPTIONS request
     if (method === 'OPTIONS') {
+      context.log('Handling OPTIONS request - returning CORS headers');
       return {
         status: 204,
         headers: {
