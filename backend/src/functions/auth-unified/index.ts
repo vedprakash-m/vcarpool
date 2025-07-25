@@ -16,6 +16,7 @@ type AuthResult = import('../../services/domains/user-domain.service').AuthResul
  * - POST /api/auth?action=forgot-password - Password reset request
  * - POST /api/auth?action=reset-password - Password reset confirmation
  * - POST /api/auth?action=change-password - Password change
+ * - POST /api/auth?action=entra-login - Microsoft Entra ID login
  *
  * This consolidates all authentication functionality into a single,
  * maintainable endpoint using our unified authentication architecture.
@@ -68,6 +69,7 @@ export async function authUnified(
             'forgot-password',
             'reset-password',
             'change-password',
+            'entra-login',
           ],
         },
       };
@@ -106,6 +108,10 @@ export async function authUnified(
         result = await handleChangePassword(body, request, context);
         break;
 
+      case 'entra-login':
+        result = await handleEntraLogin(body, context);
+        break;
+
       default:
         return {
           status: 400,
@@ -120,6 +126,7 @@ export async function authUnified(
               'forgot-password',
               'reset-password',
               'change-password',
+              'entra-login',
             ],
           },
         };
@@ -296,6 +303,31 @@ async function handleChangePassword(
     return {
       success: false,
       message: 'Invalid authorization token',
+    };
+  }
+}
+
+/**
+ * Handle Microsoft Entra ID login
+ */
+async function handleEntraLogin(body: any, context: InvocationContext): Promise<AuthResult> {
+  context.log('Processing Entra ID login request');
+
+  if (!body.accessToken) {
+    return {
+      success: false,
+      message: 'Access token is required for Entra ID authentication',
+    };
+  }
+
+  try {
+    // Use the userDomainService to authenticate with the Entra token
+    return await userDomainService.authenticateUser(body.accessToken);
+  } catch (error) {
+    context.error('Entra ID authentication failed:', error);
+    return {
+      success: false,
+      message: 'Microsoft Entra ID authentication failed',
     };
   }
 }
