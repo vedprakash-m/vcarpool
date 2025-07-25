@@ -459,15 +459,15 @@ function handleEntraLogin(context, requestData) {
   // TODO: Validate the Microsoft access token and extract user info
   // For now, return a mock successful response with proper role assignment
   
-  // Admin users list - Add your email here
+  // Admin users list - Add your personal/work emails here
   const adminEmails = [
-    'vedprakash.m@outlook.com',
-    'vedprakashmishra@outlook.com', 
-    'your-admin-email@domain.com' // Add your actual admin email
+    'vedprakash.m@outlook.com', // Your personal account
+    'vedprakashmishra@outlook.com',
+    'vedprakash.m@vedprakashmoutlook.onmicrosoft.com' // Work account fallback
   ];
   
   // Mock user data - In real implementation, extract from validated token
-  const userEmail = 'vedprakash.m@outlook.com'; // This should come from token
+  const userEmail = 'vedprakash.m@outlook.com'; // Your personal account
   const isAdmin = adminEmails.includes(userEmail.toLowerCase());
   
   const mockUser = {
