@@ -15,7 +15,7 @@ import {
   AcademicCapIcon,
   KeyIcon,
 } from '@heroicons/react/24/outline';
-import ChangePasswordForm from '../../components/ChangePasswordForm';
+import ChangePasswordForm from '@/components/ChangePasswordForm';
 
 export default function ProfilePage() {
   const router = useRouter();
