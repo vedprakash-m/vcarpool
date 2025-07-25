@@ -14,7 +14,7 @@ const msalConfig = {
     authority:
       process.env.NEXT_PUBLIC_ENTRA_AUTHORITY ||
       'https://login.microsoftonline.com/vedprakashmoutlook.onmicrosoft.com',
-    redirectUri: typeof window !== 'undefined' ? window.location.origin : '',
+    redirectUri: typeof window !== 'undefined' ? `${window.location.origin}/login` : '',
   },
   cache: {
     cacheLocation: 'sessionStorage' as const,
@@ -123,8 +123,7 @@ export const useEntraAuthStore = create<EntraAuthStore>()((set, get) => ({
         console.log('Access token length:', response.accessToken.length);
 
         // Successful login redirect - exchange token with backend using unified auth endpoint
-        const apiResponse = await apiClient.post('/auth', {
-          action: 'entra-login',
+        const apiResponse = await apiClient.post('/auth?action=entra-login', {
           authProvider: 'entra',
           accessToken: response.accessToken,
         });
@@ -153,8 +152,10 @@ export const useEntraAuthStore = create<EntraAuthStore>()((set, get) => ({
           );
 
           // Redirect to dashboard after successful auth
-          console.log('Redirecting to dashboard...');
-          window.location.href = '/dashboard';
+          console.log('Authentication successful, redirecting to dashboard...');
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 100);
           return;
         } else {
           console.error('Backend auth failed:', apiResponse);
@@ -368,8 +369,7 @@ export const useEntraAuthStore = create<EntraAuthStore>()((set, get) => ({
 
         if (tokenResponse.accessToken) {
           // Authenticate with backend using Entra token via unified auth endpoint
-          const response = await apiClient.post('/auth', {
-            action: 'entra-login',
+          const response = await apiClient.post('/auth?action=entra-login', {
             authProvider: 'entra',
             accessToken: tokenResponse.accessToken,
           });

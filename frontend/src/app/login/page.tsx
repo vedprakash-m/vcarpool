@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
@@ -25,9 +25,22 @@ export default function LoginPage() {
   const isLoading = useAuthStore(state => state.isLoading);
 
   // Entra ID authentication
-  const { loginWithEntra, isLoading: entraLoading } = useEntraAuthStore();
+  const { 
+    loginWithEntra, 
+    isLoading: entraLoading, 
+    isAuthenticated: entraAuthenticated,
+    vedUser: entraUser 
+  } = useEntraAuthStore();
   const isEntraEnabled = process.env.NEXT_PUBLIC_ENABLE_ENTRA_AUTH === 'true';
   const isLegacyEnabled = process.env.NEXT_PUBLIC_ENABLE_LEGACY_AUTH === 'true';
+
+  // Check if user is already authenticated and redirect
+  useEffect(() => {
+    if (entraAuthenticated && entraUser) {
+      console.log('User already authenticated, redirecting to dashboard...');
+      router.push('/dashboard');
+    }
+  }, [entraAuthenticated, entraUser, router]);
 
   const {
     register,
