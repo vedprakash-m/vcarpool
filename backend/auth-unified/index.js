@@ -456,14 +456,32 @@ function handleEntraLogin(context, requestData) {
     return;
   }
 
-  // TODO: Validate the Microsoft access token and create user session
-  // For now, return a mock successful response
+  // TODO: Validate the Microsoft access token and extract user info
+  // For now, return a mock successful response with proper role assignment
+  
+  // Admin users list - Add your email here
+  const adminEmails = [
+    'vedprakash.m@outlook.com',
+    'vedprakashmishra@outlook.com', 
+    'your-admin-email@domain.com' // Add your actual admin email
+  ];
+  
+  // Mock user data - In real implementation, extract from validated token
+  const userEmail = 'vedprakash.m@outlook.com'; // This should come from token
+  const isAdmin = adminEmails.includes(userEmail.toLowerCase());
+  
   const mockUser = {
-    id: 'entra-user-123',
-    email: 'user@vedprakashmoutlook.onmicrosoft.com',
-    name: 'Entra User',
-    role: 'parent',
+    id: isAdmin ? 'admin-user-001' : 'entra-user-123',
+    email: userEmail,
+    name: isAdmin ? 'Vedprakash Mishra (Admin)' : 'Standard User',
+    role: isAdmin ? 'admin' : 'parent',
     status: 'active',
+    permissions: isAdmin ? [
+      'platform_management',
+      'group_admin_promotion', 
+      'system_configuration',
+      'safety_escalation'
+    ] : ['trip_participation', 'preference_submission']
   };
 
   context.res = {
