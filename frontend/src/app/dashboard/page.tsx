@@ -4,7 +4,7 @@ import { useEffect, memo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
-import { useAuthStore } from '@/store/auth.store';
+import { useEntraAuthStore } from '@/store/entra-auth.store';
 import { useTripStore } from '@/store/trip.store';
 import {
   useRenderPerformance,
@@ -29,7 +29,7 @@ export default memo(function DashboardPage() {
   useRenderPerformance('DashboardPage');
 
   const router = useRouter();
-  const { user, isAuthenticated } = useAuthStore();
+  const { vedUser: user, isAuthenticated } = useEntraAuthStore();
   const { stats, loading, fetchTripStats } = useTripStore();
 
   // Throttled navigation functions to prevent rapid clicks

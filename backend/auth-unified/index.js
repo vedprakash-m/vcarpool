@@ -474,6 +474,8 @@ function handleEntraLogin(context, requestData) {
     id: isAdmin ? 'admin-user-001' : 'entra-user-123',
     email: userEmail,
     name: isAdmin ? 'Vedprakash Mishra (Admin)' : 'Standard User',
+    firstName: isAdmin ? 'Vedprakash' : 'Standard',
+    lastName: isAdmin ? 'Mishra' : 'User',
     role: isAdmin ? 'admin' : 'parent',
     status: 'active',
     permissions: isAdmin ? [
