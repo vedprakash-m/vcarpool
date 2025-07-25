@@ -29,24 +29,43 @@ export default memo(function DashboardPage() {
   useRenderPerformance('DashboardPage');
 
   const router = useRouter();
-  const { vedUser: user, isAuthenticated } = useEntraAuthStore();
+  const { vedUser: user, isAuthenticated, isLoading: authLoading } = useEntraAuthStore();
   const { stats, loading, fetchTripStats } = useTripStore();
 
   // Throttled navigation functions to prevent rapid clicks
 
   useEffect(() => {
+    let isMounted = true;
+    
+    // Wait for auth to finish loading before making API calls
     if (
+      !authLoading &&
       isAuthenticated &&
       user &&
       fetchTripStats &&
       typeof fetchTripStats === 'function'
     ) {
-      const result = fetchTripStats();
-      if (result && typeof result.catch === 'function') {
-        result.catch(console.error);
-      }
+      // Add a small delay to prevent rapid API calls
+      const fetchTimer = setTimeout(async () => {
+        if (isMounted) {
+          try {
+            await fetchTripStats();
+          } catch (error) {
+            console.error('Failed to fetch trip stats:', error);
+          }
+        }
+      }, 500);
+      
+      return () => {
+        clearTimeout(fetchTimer);
+        isMounted = false;
+      };
     }
-  }, [isAuthenticated, user, fetchTripStats]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [authLoading, isAuthenticated, user, fetchTripStats]);
 
   // Define hooks before any conditional logic
   const handleWeeklyPreferences = useThrottle(
@@ -62,6 +81,20 @@ export default memo(function DashboardPage() {
     }, [router]),
     1000
   );
+
+  // Show loading while authentication is being established
+  if (authLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   // Don't render if not authenticated or user is missing
   if (!isAuthenticated || !user) {

@@ -1,5 +1,17 @@
-const { CorsMiddleware } = require("../src/middleware/cors.middleware");
-const UnifiedResponseHandler = require("../src/utils/unified-response.service");
+// Simple CORS headers without requiring the middleware
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400"
+};
+
+// Simple response handler
+const createResponse = (statusCode, body, headers = {}) => ({
+  status: statusCode,
+  headers: { ...corsHeaders, ...headers },
+  body: typeof body === 'string' ? body : JSON.stringify(body)
+});
 
 module.exports = async function (context, req) {
   context.log("Trips stats function started");
@@ -7,7 +19,9 @@ module.exports = async function (context, req) {
   try {
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
-      context.res = UnifiedResponseHandler.preflight();
+      context.res = createResponse(200, "", {
+        "Content-Type": "text/plain"
+      });
       return;
     }
 
@@ -83,9 +97,30 @@ module.exports = async function (context, req) {
 
     context.log("Returning stats:", stats);
 
-    context.res = UnifiedResponseHandler.success(stats);
+    context.res = createResponse(200, {
+      success: true,
+      data: stats,
+      meta: {
+        timestamp: new Date().toISOString(),
+        version: "1.0.0"
+      }
+    }, {
+      "Content-Type": "application/json"
+    });
   } catch (error) {
     context.log("Stats error:", error);
-    context.res = UnifiedResponseHandler.handleException(error);
+    context.res = createResponse(500, {
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "An internal server error occurred",
+        statusCode: 500
+      },
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    }, {
+      "Content-Type": "application/json"
+    });
   }
 };

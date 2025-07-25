@@ -34,11 +34,16 @@ export default function LoginPage() {
   const isEntraEnabled = process.env.NEXT_PUBLIC_ENABLE_ENTRA_AUTH === 'true';
   const isLegacyEnabled = process.env.NEXT_PUBLIC_ENABLE_LEGACY_AUTH === 'true';
 
-  // Check if user is already authenticated and redirect
+  // Check if user is already authenticated and redirect (with redirect guard)
   useEffect(() => {
-    if (entraAuthenticated && entraUser) {
+    let redirectExecuted = false;
+    
+    if (entraAuthenticated && entraUser && !redirectExecuted) {
       console.log('User already authenticated, redirecting to dashboard...');
-      router.push('/dashboard');
+      redirectExecuted = true;
+      
+      // Use replace to avoid adding to history and prevent back navigation loops
+      router.replace('/dashboard');
     }
   }, [entraAuthenticated, entraUser, router]);
 

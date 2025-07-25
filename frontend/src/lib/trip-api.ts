@@ -148,26 +148,20 @@ class TripApiService {
    */
   async getTripStats(): Promise<TripStats> {
     try {
-      // TEMPORARY CORS WORKAROUND: Use simple fetch without custom headers
-      // to bypass CORS preflight issues
-      const response = await fetch(
-        'https://carpool-api-prod.azurewebsites.net/api/v1/trips/stats'
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      // Use apiClient to get trip stats through the proper API wrapper
+      const response = await apiClient.get<TripStats>('/v1/trips/stats');
+      
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        console.warn('Backend returned non-success response for trip stats');
+        throw new Error('Backend returned invalid response');
       }
-
-      const data = await response.json();
-
-      if (!data.success || !data.data) {
-        throw new Error('Failed to fetch trip stats');
-      }
-
-      return data.data;
     } catch (error) {
       console.error('Trip stats fetch error:', error);
-      // Fallback: return zero stats for new users
+      
+      // For now, return fallback stats to prevent dashboard crashes
+      // This allows the app to continue working while we investigate the backend issue
       return {
         totalTrips: 0,
         tripsAsDriver: 0,
