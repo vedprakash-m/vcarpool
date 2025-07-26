@@ -1,6 +1,7 @@
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { userDomainService } from '../../services/domains/user-domain.service';
 import { CreateUserRequest } from '@carpool/shared';
+import { authCors } from '../../middleware/cors.middleware';
 
 // Use the domain service's AuthResult type for now
 type AuthResult = import('../../services/domains/user-domain.service').AuthResult;
@@ -30,37 +31,30 @@ export async function authUnified(
   context.log(`URL: ${request.url}`);
 
   try {
-    const method = request.method;
-
-    // Handle preflight OPTIONS request
-    if (method === 'OPTIONS') {
-      context.log('Handling OPTIONS request - returning CORS headers');
-      context.log('Request headers:', JSON.stringify(Object.fromEntries(request.headers.entries())));
-      return {
-        status: 204,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Origin',
-          'Access-Control-Max-Age': '86400',
-          'Content-Length': '0',
-        },
-      };
+    // Apply CORS middleware
+    const corsResponse = await authCors(request, context);
+    if (corsResponse) {
+      return corsResponse; // Handle preflight requests
     }
 
+    const method = request.method;
+
     if (method !== 'POST') {
+      const corsHeaders = (context as any).res?.headers || {};
       return {
         status: 405,
         jsonBody: {
           success: false,
           message: 'Method not allowed. Use POST.',
         },
+        headers: corsHeaders,
       };
     }
 
     // Get action from query parameter
     const action = request.query.get('action');
     if (!action) {
+      const corsHeaders = (context as any).res?.headers || {};
       return {
         status: 400,
         jsonBody: {
@@ -77,6 +71,7 @@ export async function authUnified(
             'entra-login',
           ],
         },
+        headers: corsHeaders,
       };
     }
 
@@ -118,6 +113,7 @@ export async function authUnified(
         break;
 
       default:
+        const corsHeaders = (context as any).res?.headers || {};
         return {
           status: 400,
           jsonBody: {
@@ -134,19 +130,24 @@ export async function authUnified(
               'entra-login',
             ],
           },
+          headers: corsHeaders,
         };
     }
+
+    // Get CORS headers from context (set by middleware)
+    const corsHeaders = (context as any).res?.headers || {};
 
     return {
       status: result.success ? 200 : 400,
       jsonBody: result,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
+      headers: corsHeaders,
     };
   } catch (error) {
     context.error('Unified auth error:', error);
+    
+    // Get CORS headers from context for error responses too
+    const corsHeaders = (context as any).res?.headers || {};
+    
     return {
       status: 500,
       jsonBody: {
@@ -154,6 +155,7 @@ export async function authUnified(
         message: 'Internal server error',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       },
+      headers: corsHeaders,
     };
   }
 }
