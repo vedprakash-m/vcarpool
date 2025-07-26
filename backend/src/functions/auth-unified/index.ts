@@ -79,7 +79,6 @@ export async function authUnified(
     }
 
     context.log('Continuing with main function logic');
-    const method = request.method;
 
     if (method !== 'POST') {
       return {
