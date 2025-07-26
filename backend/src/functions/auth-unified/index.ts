@@ -32,11 +32,15 @@ export async function authUnified(
 
   try {
     // Apply CORS middleware
+    context.log('About to apply CORS middleware');
     const corsResponse = await authCors(request, context);
+    context.log('CORS middleware response:', corsResponse ? 'returned response' : 'no response');
     if (corsResponse) {
+      context.log('Returning CORS preflight response');
       return corsResponse; // Handle preflight requests
     }
 
+    context.log('Continuing with main function logic');
     const method = request.method;
 
     if (method !== 'POST') {
@@ -136,6 +140,7 @@ export async function authUnified(
 
     // Get CORS headers from context (set by middleware)
     const corsHeaders = (context as any).res?.headers || {};
+    context.log('CORS headers from context:', corsHeaders);
 
     return {
       status: result.success ? 200 : 400,
