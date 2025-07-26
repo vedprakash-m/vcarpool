@@ -1,7 +1,6 @@
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { userDomainService } from '../../services/domains/user-domain.service';
 import { CreateUserRequest } from '@carpool/shared';
-import { authCors } from '../../middleware/cors.middleware';
 
 // Use the domain service's AuthResult type for now
 type AuthResult = import('../../services/domains/user-domain.service').AuthResult;
@@ -31,20 +30,58 @@ export async function authUnified(
   context.log(`URL: ${request.url}`);
 
   try {
-    // Apply CORS middleware
-    context.log('About to apply CORS middleware');
-    const corsResponse = await authCors(request, context);
-    context.log('CORS middleware response:', corsResponse ? 'returned response' : 'no response');
-    if (corsResponse) {
-      context.log('Returning CORS preflight response');
-      return corsResponse; // Handle preflight requests
+    const method = request.method;
+    const origin = request.headers.get('origin');
+    
+    // Define allowed origins
+    const allowedOrigins = [
+      'https://carpool.vedprakash.net',
+      'https://lively-stone-016bfa20f.6.azurestaticapps.net',
+      'http://localhost:3000'
+    ];
+    
+    // Check if origin is allowed
+    const isAllowedOrigin = allowedOrigins.includes(origin);
+    
+    // Create CORS headers
+    const corsHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (isAllowedOrigin) {
+      corsHeaders['Access-Control-Allow-Origin'] = origin;
+      corsHeaders['Access-Control-Allow-Credentials'] = 'true';
+    }
+    
+    // Handle preflight OPTIONS request
+    if (method === 'OPTIONS') {
+      context.log('Handling OPTIONS preflight request');
+      context.log(`Origin: ${origin}, Allowed: ${isAllowedOrigin}`);
+      
+      if (isAllowedOrigin) {
+        return {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+            'Access-Control-Max-Age': '86400',
+          },
+          body: '',
+        };
+      } else {
+        return {
+          status: 403,
+          headers: corsHeaders,
+          jsonBody: { error: 'Origin not allowed' },
+        };
+      }
     }
 
     context.log('Continuing with main function logic');
     const method = request.method;
 
     if (method !== 'POST') {
-      const corsHeaders = (context as any).res?.headers || {};
       return {
         status: 405,
         jsonBody: {
@@ -58,7 +95,6 @@ export async function authUnified(
     // Get action from query parameter
     const action = request.query.get('action');
     if (!action) {
-      const corsHeaders = (context as any).res?.headers || {};
       return {
         status: 400,
         jsonBody: {
@@ -117,7 +153,6 @@ export async function authUnified(
         break;
 
       default:
-        const corsHeaders = (context as any).res?.headers || {};
         return {
           status: 400,
           jsonBody: {
@@ -139,7 +174,6 @@ export async function authUnified(
     }
 
     // Get CORS headers from context (set by middleware)
-    const corsHeaders = (context as any).res?.headers || {};
     context.log('CORS headers from context:', corsHeaders);
 
     return {
@@ -150,8 +184,23 @@ export async function authUnified(
   } catch (error) {
     context.error('Unified auth error:', error);
     
-    // Get CORS headers from context for error responses too
-    const corsHeaders = (context as any).res?.headers || {};
+    // Create basic CORS headers for error response
+    const origin = request.headers.get('origin');
+    const allowedOrigins = [
+      'https://carpool.vedprakash.net',
+      'https://lively-stone-016bfa20f.6.azurestaticapps.net',
+      'http://localhost:3000'
+    ];
+    const isAllowedOrigin = allowedOrigins.includes(origin);
+    
+    const errorCorsHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (isAllowedOrigin) {
+      errorCorsHeaders['Access-Control-Allow-Origin'] = origin;
+      errorCorsHeaders['Access-Control-Allow-Credentials'] = 'true';
+    }
     
     return {
       status: 500,
@@ -160,7 +209,7 @@ export async function authUnified(
         message: 'Internal server error',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       },
-      headers: corsHeaders,
+      headers: errorCorsHeaders,
     };
   }
 }
