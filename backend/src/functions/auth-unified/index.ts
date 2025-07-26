@@ -33,6 +33,8 @@ export async function authUnified(
     const method = request.method;
     const origin = request.headers.get('origin');
     
+    context.log(`Processing request - Method: ${method}, Origin: ${origin}`);
+    
     // Define allowed origins
     const allowedOrigins = [
       'https://carpool.vedprakash.net',
@@ -40,8 +42,8 @@ export async function authUnified(
       'http://localhost:3000'
     ];
     
-    // Check if origin is allowed
-    const isAllowedOrigin = allowedOrigins.includes(origin);
+    // Check if origin is allowed - handle null/undefined case
+    const isAllowedOrigin = origin && allowedOrigins.includes(origin);
     
     // Create CORS headers
     const corsHeaders: Record<string, string> = {
@@ -190,7 +192,7 @@ export async function authUnified(
       'https://lively-stone-016bfa20f.6.azurestaticapps.net',
       'http://localhost:3000'
     ];
-    const isAllowedOrigin = allowedOrigins.includes(origin);
+    const isAllowedOrigin = origin && allowedOrigins.includes(origin);
     
     const errorCorsHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
