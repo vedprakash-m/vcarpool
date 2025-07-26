@@ -157,8 +157,7 @@ export class CorsMiddleware {
     production: {
       origins: [
         'https://lively-stone-016bfa20f.6.azurestaticapps.net',
-        'https://carpool.app',
-        'https://www.carpool.app',
+        'https://carpool.vedprakash.net',
       ],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
