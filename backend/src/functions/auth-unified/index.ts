@@ -61,30 +61,25 @@ export async function authUnified(
       context.log(`Origin: ${origin}, Allowed: ${isAllowedOrigin}`);
       
       if (isAllowedOrigin) {
-        const optionsHeaders: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': origin,
-          'Access-Control-Allow-Credentials': 'true',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-          'Access-Control-Max-Age': '86400',
-        };
+        context.log('Setting CORS headers for allowed origin');
         
-        context.log('Returning OPTIONS with headers:', optionsHeaders);
-        
-        return {
+        const corsResponse = {
           status: 200,
-          headers: optionsHeaders,
-          body: '',
+          headers: {
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+            'Access-Control-Allow-Credentials': 'true',
+            'Access-Control-Max-Age': '86400'
+          }
         };
+        
+        context.log('CORS response:', corsResponse);
+        return corsResponse;
       } else {
         context.log('Origin not allowed for OPTIONS request');
         return {
-          status: 403,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          jsonBody: { error: 'Origin not allowed' },
+          status: 200, // Always return 200 for OPTIONS
         };
       }
     }
@@ -196,15 +191,26 @@ export async function authUnified(
     if (isAllowedOrigin) {
       responseHeaders['Access-Control-Allow-Origin'] = origin;
       responseHeaders['Access-Control-Allow-Credentials'] = 'true';
+      context.log('Adding CORS headers for allowed origin');
+    } else {
+      context.log('Origin not allowed, not setting CORS headers');
     }
     
     context.log('Final response headers:', responseHeaders);
 
-    return {
+    // Try setting headers through context as well
+    if (isAllowedOrigin) {
+      context.log('Setting CORS via context for allowed origin');
+    }
+
+    const finalResponse = {
       status: result.success ? 200 : 400,
       jsonBody: result,
       headers: responseHeaders,
     };
+    
+    context.log('Final response structure:', finalResponse);
+    return finalResponse;
   } catch (error) {
     context.error('Unified auth error:', error);
     
