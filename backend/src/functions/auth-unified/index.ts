@@ -175,12 +175,24 @@ export async function authUnified(
     }
 
     // Get CORS headers from context (set by middleware)
-    context.log('CORS headers from context:', corsHeaders);
+    context.log('CORS headers before return:', corsHeaders);
+    context.log('isAllowedOrigin:', isAllowedOrigin);
+    context.log('origin:', origin);
+
+    // Ensure CORS headers are set for allowed origins
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (isAllowedOrigin) {
+      responseHeaders['Access-Control-Allow-Origin'] = origin;
+      responseHeaders['Access-Control-Allow-Credentials'] = 'true';
+    }
 
     return {
       status: result.success ? 200 : 400,
       jsonBody: result,
-      headers: corsHeaders,
+      headers: responseHeaders,
     };
   } catch (error) {
     context.error('Unified auth error:', error);
