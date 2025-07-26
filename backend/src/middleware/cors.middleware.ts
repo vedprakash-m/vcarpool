@@ -189,43 +189,38 @@ export class CorsMiddleware {
   }
 
   /**
-   * Specific configurations for different endpoint types
-   */
-  static readonly endpointConfigs = {
-    auth: {
-      origins: this.configs.production.origins,
-      credentials: true,
-      methods: ['POST', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    },
-
-    api: {
-      origins: this.configs.production.origins,
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID'],
-    },
-
-    public: {
-      origins: '*',
-      credentials: false,
-      methods: ['GET', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Accept'],
-    },
-
-    admin: {
-      origins: this.configs.production.origins,
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Admin-Token'],
-    },
-  };
-
-  /**
    * Create endpoint-specific CORS middleware
    */
-  static forEndpoint(type: keyof typeof CorsMiddleware.endpointConfigs): Middleware {
-    const config = this.endpointConfigs[type];
+  static forEndpoint(type: 'auth' | 'api' | 'public' | 'admin'): Middleware {
+    // Dynamic configuration to ensure latest values are used
+    const endpointConfigs = {
+      auth: {
+        origins: this.configs.production.origins,
+        credentials: true,
+        methods: ['POST', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      },
+      api: {
+        origins: this.configs.production.origins,
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID'],
+      },
+      public: {
+        origins: '*',
+        credentials: false,
+        methods: ['GET', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Accept'],
+      },
+      admin: {
+        origins: this.configs.production.origins,
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Admin-Token'],
+      },
+    };
+
+    const config = endpointConfigs[type];
     return this.create(config);
   }
 }
