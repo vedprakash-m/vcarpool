@@ -61,20 +61,29 @@ export async function authUnified(
       context.log(`Origin: ${origin}, Allowed: ${isAllowedOrigin}`);
       
       if (isAllowedOrigin) {
+        const optionsHeaders: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+          'Access-Control-Max-Age': '86400',
+        };
+        
+        context.log('Returning OPTIONS with headers:', optionsHeaders);
+        
         return {
           status: 200,
-          headers: {
-            ...corsHeaders,
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-            'Access-Control-Max-Age': '86400',
-          },
+          headers: optionsHeaders,
           body: '',
         };
       } else {
+        context.log('Origin not allowed for OPTIONS request');
         return {
           status: 403,
-          headers: corsHeaders,
+          headers: {
+            'Content-Type': 'application/json',
+          },
           jsonBody: { error: 'Origin not allowed' },
         };
       }
@@ -188,6 +197,8 @@ export async function authUnified(
       responseHeaders['Access-Control-Allow-Origin'] = origin;
       responseHeaders['Access-Control-Allow-Credentials'] = 'true';
     }
+    
+    context.log('Final response headers:', responseHeaders);
 
     return {
       status: result.success ? 200 : 400,
