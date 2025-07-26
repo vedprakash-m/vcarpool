@@ -63,19 +63,22 @@ export async function authUnified(
       if (isAllowedOrigin) {
         context.log('Setting CORS headers for allowed origin');
         
-        const corsResponse = {
+        // Try different approach - set headers directly on context
+        const response: HttpResponseInit = {
           status: 200,
-          headers: {
-            'Access-Control-Allow-Origin': origin,
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-            'Access-Control-Allow-Credentials': 'true',
-            'Access-Control-Max-Age': '86400'
-          }
+          body: ''
         };
         
-        context.log('CORS response:', corsResponse);
-        return corsResponse;
+        // Set headers using traditional approach
+        response.headers = {};
+        response.headers['Access-Control-Allow-Origin'] = origin;
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS';
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With';
+        response.headers['Access-Control-Allow-Credentials'] = 'true';
+        response.headers['Access-Control-Max-Age'] = '86400';
+        
+        context.log('Final OPTIONS response:', response);
+        return response;
       } else {
         context.log('Origin not allowed for OPTIONS request');
         return {
@@ -203,11 +206,22 @@ export async function authUnified(
       context.log('Setting CORS via context for allowed origin');
     }
 
-    const finalResponse = {
+    const finalResponse: HttpResponseInit = {
       status: result.success ? 200 : 400,
       jsonBody: result,
-      headers: responseHeaders,
     };
+    
+    // Set headers explicitly
+    finalResponse.headers = {};
+    finalResponse.headers['Content-Type'] = 'application/json';
+    
+    if (isAllowedOrigin) {
+      finalResponse.headers['Access-Control-Allow-Origin'] = origin;
+      finalResponse.headers['Access-Control-Allow-Credentials'] = 'true';
+      context.log('Adding CORS headers for allowed origin to main response');
+    } else {
+      context.log('Origin not allowed, not setting CORS headers');
+    }
     
     context.log('Final response structure:', finalResponse);
     return finalResponse;
