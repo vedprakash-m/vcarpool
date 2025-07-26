@@ -35,7 +35,7 @@ export class CorsMiddleware {
   /**
    * Create standardized CORS headers
    */
-  static createHeaders(options: CorsOptions = {}): Record<string, string> {
+  static createHeaders(options: CorsOptions = {}, requestOrigin?: string): Record<string, string> {
     const config = { ...this.DEFAULT_OPTIONS, ...options };
 
     const headers: Record<string, string> = {
@@ -54,9 +54,14 @@ export class CorsMiddleware {
       'Referrer-Policy': 'strict-origin-when-cross-origin',
     };
 
-    // Handle origins
+    // Handle origins properly - must match exactly one origin from the request
     if (Array.isArray(config.origins)) {
-      headers['Access-Control-Allow-Origin'] = config.origins.join(', ');
+      if (requestOrigin && config.origins.includes(requestOrigin)) {
+        headers['Access-Control-Allow-Origin'] = requestOrigin;
+      } else if (config.origins.length === 1) {
+        headers['Access-Control-Allow-Origin'] = config.origins[0];
+      }
+      // If no match and multiple origins, don't set the header (will result in CORS failure)
     } else {
       headers['Access-Control-Allow-Origin'] = config.origins;
     }
@@ -78,8 +83,8 @@ export class CorsMiddleware {
   /**
    * Apply CORS headers to response
    */
-  static applyHeaders(response: HttpResponseInit, options: CorsOptions = {}): HttpResponseInit {
-    const corsHeaders = this.createHeaders(options);
+  static applyHeaders(response: HttpResponseInit, options: CorsOptions = {}, requestOrigin?: string): HttpResponseInit {
+    const corsHeaders = this.createHeaders(options, requestOrigin);
 
     return {
       ...response,
@@ -96,10 +101,11 @@ export class CorsMiddleware {
   static handlePreflight(request: HttpRequest, options: CorsOptions = {}): HttpResponseInit | null {
     if (request.method === 'OPTIONS') {
       const config = { ...this.DEFAULT_OPTIONS, ...options };
+      const requestOrigin = request.headers.get('origin');
 
       return {
         status: config.optionsSuccessStatus,
-        headers: this.createHeaders(options),
+        headers: this.createHeaders(options, requestOrigin),
         body: '',
       };
     }
@@ -121,7 +127,8 @@ export class CorsMiddleware {
       }
 
       // Add CORS headers to context for other middleware to use
-      const corsHeaders = this.createHeaders(options);
+      const requestOrigin = request.headers.get('origin');
+      const corsHeaders = this.createHeaders(options, requestOrigin);
 
       // Store CORS headers in context for final response
       if (!(context as any).res) {
